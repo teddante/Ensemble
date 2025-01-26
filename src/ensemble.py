@@ -42,7 +42,7 @@ for i, response in enumerate(llm_responses):
     combined_prompt += f"Model {i+1} Response ({models[i]}):\n{response}\n\n"
 
 refinement_completion = client.chat.completions.create(
-    model="anthropic/claude-2", # Using Claude-2 for refinement
+    model="deepseek/deepseek-r1-distill-llama-70b",
     messages=[
         {
             "role": "user",
@@ -51,5 +51,5 @@ refinement_completion = client.chat.completions.create(
     ]
 )
 refined_answer = refinement_completion.choices[0].message.content
-print("\nCombined and Refined Answer (using anthropic/claude-2):")
+print("\nCombined and Refined Answer (using deepseek/deepseek-r1-distill-llama-70b):")
 print(refined_answer)
