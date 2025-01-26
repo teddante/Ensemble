@@ -12,9 +12,9 @@ client = OpenAI(
 
 
 models = [
-    "deepseek/deepseek-r1-distill-llama-70b",
-    "deepseek/deepseek-r1-distill-llama-70b",
-    "deepseek/deepseek-r1-distill-llama-70b"
+    "google/gemini-flash-1.5",
+    "google/gemini-flash-1.5",
+    "google/gemini-flash-1.5"
 ]  # Allows users to modify models here
 
 llm_responses = []
@@ -39,12 +39,13 @@ if print_individual_responses:
         print(f"Model {i+1} ({models[i]}): {response}")
 
 # Combine responses and refine with another LLM
-combined_prompt = "Here are the responses from different LLMs to the question: '{}'. Please combine these perspectives and provide a single, refined answer.\n\n".format(prompt)
+combined_prompt = "Here are the responses from different LLMs to the question: '{}'. Please combine these perspectives and provide a single, refined answer that is concise, direct and clear.\n\n".format(prompt)
 for i, response in enumerate(llm_responses):
     combined_prompt += f"Model {i+1} Response ({models[i]}):\n{response}\n\n"
 
+refinement_model_name = "google/gemini-flash-1.5"
 refinement_completion = client.chat.completions.create(
-    model="deepseek/deepseek-r1-distill-llama-70b",
+    model=refinement_model_name,
     messages=[
         {
             "role": "user",
@@ -53,5 +54,6 @@ refinement_completion = client.chat.completions.create(
     ]
 )
 refined_answer = refinement_completion.choices[0].message.content
-print("\nCombined and Refined Answer (using deepseek/deepseek-r1-distill-llama-70b):")
+refinement_model = refinement_model_name
+print(f"\nCombined and Refined Answer (using {refinement_model}):")
 print(refined_answer)
