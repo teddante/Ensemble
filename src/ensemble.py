@@ -21,6 +21,7 @@ if not prompt:
     prompt = input("Enter your prompt: ")
 
 for model in models:
+    print(f"Generating response from model: {model}...")
     completion = client.chat.completions.create(
         model=model,
         messages=[
@@ -44,6 +45,7 @@ for i, response in enumerate(llm_responses):
     combined_prompt += f"Model {i+1} Response ({models[i]}):\n{response}\n\n"
 
 refinement_model_name =  os.getenv("REFINEMENT_MODEL_NAME")
+print(f"Generating refined answer using model: {refinement_model_name}...")
 refinement_completion = client.chat.completions.create(
     model=refinement_model_name,
     messages=[
