@@ -11,14 +11,12 @@ client = OpenAI(
 )
 
 
-models = [
-    "google/gemini-flash-1.5",
-    "google/gemini-flash-1.5",
-    "google/gemini-flash-1.5"
-]  # Allows users to modify models here
+# Read models from .env and parse the comma-separated string into a list
+models_str = os.getenv("MODELS")
+models = models_str.split(",") if models_str else []
 
 llm_responses = []
-prompt = "What is the meaning of life?"
+prompt = os.getenv("PROMPT")
 
 for model in models:
     completion = client.chat.completions.create(
@@ -43,7 +41,7 @@ combined_prompt = "Here are the responses from different LLMs to the question: '
 for i, response in enumerate(llm_responses):
     combined_prompt += f"Model {i+1} Response ({models[i]}):\n{response}\n\n"
 
-refinement_model_name = "google/gemini-flash-1.5"
+refinement_model_name =  os.getenv("REFINEMENT_MODEL_NAME")
 refinement_completion = client.chat.completions.create(
     model=refinement_model_name,
     messages=[
