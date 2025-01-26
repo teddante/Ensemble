@@ -15,7 +15,7 @@ models = [
     "deepseek/deepseek-r1-distill-llama-70b",
     "deepseek/deepseek-r1-distill-llama-70b",
     "deepseek/deepseek-r1-distill-llama-70b"
-]
+]  # Allows users to modify models here
 
 llm_responses = []
 prompt = "What is the meaning of life?"
@@ -32,9 +32,11 @@ for model in models:
     )
     llm_responses.append(completion.choices[0].message.content)
 
-print("Responses from individual LLMs:")
-for i, response in enumerate(llm_responses):
-    print(f"Model {i+1} ({models[i]}): {response}")
+print_individual_responses = True  # Set to False to hide individual responses
+if print_individual_responses:
+    print("Responses from individual LLMs:")
+    for i, response in enumerate(llm_responses):
+        print(f"Model {i+1} ({models[i]}): {response}")
 
 # Combine responses and refine with another LLM
 combined_prompt = "Here are the responses from different LLMs to the question: '{}'. Please combine these perspectives and provide a single, refined answer.\n\n".format(prompt)
