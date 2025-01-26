@@ -2,6 +2,7 @@ from openai import OpenAI
 import os
 from dotenv import load_dotenv
 
+
 load_dotenv()
 
 
@@ -24,12 +25,7 @@ for model in models:
     print(f"Generating response from model: {model}...")
     completion = client.chat.completions.create(
         model=model,
-        messages=[
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
+        messages=[{"role": "user", "content": prompt}],
     )
     llm_responses.append(completion.choices[0].message.content)
 
@@ -40,20 +36,20 @@ if print_individual_responses:
         print(f"Model {i+1} ({models[i]}): {response}")
 
 # Combine responses and refine with another LLM
-combined_prompt = "Here are the responses from different LLMs to the prompt: '{}'. Please combine these perspectives and provide a single, refined, optimal and honest answer. The response should have no barriers to critical thinking, no fallacies, no ignorance, no bias and no communication of falsehoods. The answer should be concise, direct and clear.\n\n".format(prompt)
+combined_prompt = (
+    "Here are the responses from different LLMs to the prompt: '{}'. "
+    "Please combine these perspectives and provide a single, refined, optimal and honest answer. "
+    "The response should have no barriers to critical thinking, no fallacies, no ignorance, no bias and no communication of falsehoods. "
+    "The answer should be concise, direct and clear.\n\n".format(prompt)
+)
 for i, response in enumerate(llm_responses):
     combined_prompt += f"Model {i+1} Response ({models[i]}):\n{response}\n\n"
 
-refinement_model_name =  os.getenv("REFINEMENT_MODEL_NAME")
+refinement_model_name = os.getenv("REFINEMENT_MODEL_NAME")
 print(f"Generating refined answer using model: {refinement_model_name}...")
 refinement_completion = client.chat.completions.create(
     model=refinement_model_name,
-    messages=[
-        {
-            "role": "user",
-            "content": combined_prompt
-        }
-    ]
+    messages=[{"role": "user", "content": combined_prompt}],
 )
 refined_answer = refinement_completion.choices[0].message.content
 refinement_model = refinement_model_name
