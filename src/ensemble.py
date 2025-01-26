@@ -32,7 +32,7 @@ for model in models:
     )
     llm_responses.append(completion.choices[0].message.content)
 
-print_individual_responses = True  # Set to False to hide individual responses
+print_individual_responses = False  # Set to False to hide individual responses
 if print_individual_responses:
     print("Responses from individual LLMs:")
     for i, response in enumerate(llm_responses):
