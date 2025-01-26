@@ -37,7 +37,7 @@ if print_individual_responses:
         print(f"Model {i+1} ({models[i]}): {response}")
 
 # Combine responses and refine with another LLM
-combined_prompt = "Here are the responses from different LLMs to the question: '{}'. Please combine these perspectives and provide a single, refined answer that is concise, direct and clear.\n\n".format(prompt)
+combined_prompt = "Here are the responses from different LLMs to the prompt: '{}'. Please combine these perspectives and provide a single, refined answer that is concise, direct and clear.\n\n".format(prompt)
 for i, response in enumerate(llm_responses):
     combined_prompt += f"Model {i+1} Response ({models[i]}):\n{response}\n\n"
 
