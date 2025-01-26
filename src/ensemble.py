@@ -17,6 +17,8 @@ models = models_str.split(",") if models_str else []
 
 llm_responses = []
 prompt = os.getenv("PROMPT")
+if not prompt:
+    prompt = input("Enter your prompt: ")
 
 for model in models:
     completion = client.chat.completions.create(
