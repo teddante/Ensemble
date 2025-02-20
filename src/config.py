@@ -1,5 +1,3 @@
-# This file defines default configuration values for connecting to the OpenRouter API
-
 from dotenv import load_dotenv
 import os
 
