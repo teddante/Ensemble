@@ -1,19 +1,13 @@
 from openai import OpenAI
 import os
-from dotenv import load_dotenv
+from config import load_config
 
 
-def init_client():
-    load_dotenv()
+def init_client(config):
     return OpenAI(
         base_url="https://openrouter.ai/api/v1",
-        api_key=os.getenv("OPENROUTER_API_KEY"),
+        api_key=config["OPENROUTER_API_KEY"],
     )
-
-
-def get_models():
-    models_str = os.getenv("MODELS")
-    return models_str.split(",") if models_str else []
 
 
 def fetch_llm_responses(client, prompt, models):
@@ -50,9 +44,10 @@ def refine_response(client, combined_prompt, refinement_model):
 
 
 def main():
-    client = init_client()
-    models = get_models()
-    prompt = os.getenv("PROMPT") or input("Enter your prompt: ")
+    config = load_config()
+    client = init_client(config)
+    models = config["MODELS"]
+    prompt = config["PROMPT"] or input("Enter your prompt: ")
     
     llm_responses = fetch_llm_responses(client, prompt, models)
 
@@ -64,7 +59,7 @@ def main():
             print(f"Model {i+1} ({models[i]}): {response}")
 
     combined_prompt = combine_responses(prompt, models, llm_responses)
-    refinement_model = os.getenv("REFINEMENT_MODEL_NAME")
+    refinement_model = config["REFINEMENT_MODEL_NAME"]
     refined_answer = refine_response(client, combined_prompt, refinement_model)
     
     print(f"\nCombined and Refined Answer (using {refinement_model}):")
