@@ -51,8 +51,18 @@ def main():
     config = load_config()
     client = init_client(config)
     models = config["MODELS"]
-    prompt = config["PROMPT"] or input("Enter your prompt: ")
-    
+
+    # Check for a prompt file in the repository root
+    prompt_file_path = os.path.join(os.path.dirname(__file__), "..", "prompt.txt")
+    if os.path.exists(prompt_file_path):
+        with open(prompt_file_path, "r", encoding="utf-8") as f:
+            prompt = f.read()
+        print(f"Using prompt from file: {prompt_file_path}")
+    elif config["PROMPT"]:
+        prompt = config["PROMPT"]
+    else:
+        prompt = input("Enter your prompt: ")
+
     llm_responses = fetch_llm_responses(client, prompt, models)
 
     # Optionally print individual responses from each LLM
