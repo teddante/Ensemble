@@ -1,26 +1,38 @@
+import logging
 from openai import OpenAI
 import os
 from config import load_config
 
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 # Initializes the OpenRouter client using configuration
 # Returns an instance of the OpenAI client
 def init_client(config):
-    return OpenAI(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=config["OPENROUTER_API_KEY"],
-    )
+    try:
+        return OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=config["OPENROUTER_API_KEY"],
+        )
+    except Exception as e:
+        logging.exception("Failed to initialize client")
+        raise
 
 # Fetches responses from each LLM model specified in the configuration
 # Iterates through the models, sends the prompt, and collects each response
 def fetch_llm_responses(client, prompt, models):
     responses = []
     for model in models:
-        print(f"Generating response from model: {model}...")
-        completion = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        responses.append(completion.choices[0].message.content)
+        logging.info(f"Generating response from model: {model}...")
+        try:
+            completion = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            responses.append(completion.choices[0].message.content)
+        except Exception as e:
+            logging.exception(f"Error generating response from model {model}")
+            responses.append(f"Error: {e}")
     return responses
 
 # Combines individual LLM responses into a single prompt for refinement
@@ -38,46 +50,61 @@ def combine_responses(prompt, models, responses):
 
 # Refines the combined prompt using a designated LLM model to produce the final answer
 def refine_response(client, combined_prompt, refinement_model):
-    print(f"Generating refined answer using model: {refinement_model}...")
-    completion = client.chat.completions.create(
-        model=refinement_model,
-        messages=[{"role": "user", "content": combined_prompt}],
-    )
-    return completion.choices[0].message.content
+    logging.info(f"Generating refined answer using model: {refinement_model}...")
+    try:
+        completion = client.chat.completions.create(
+            model=refinement_model,
+            messages=[{"role": "user", "content": combined_prompt}],
+        )
+        return completion.choices[0].message.content
+    except Exception as e:
+        logging.exception("Error during refining response")
+        raise
 
 # Main execution function
 # Loads configuration, initiates clients, fetches and refines responses, and prints the final answer
 def main():
-    config = load_config()
-    client = init_client(config)
-    models = config["MODELS"]
+    try:
+        config = load_config()
+        client = init_client(config)
+        models = config["MODELS"]
 
-    # Check for a prompt file in the repository root
-    prompt_file_path = os.path.join(os.path.dirname(__file__), "..", "prompt.txt")
-    if os.path.exists(prompt_file_path):
-        with open(prompt_file_path, "r", encoding="utf-8") as f:
-            prompt = f.read()
-        print(f"Using prompt from file: {prompt_file_path}")
-    elif config["PROMPT"]:
-        prompt = config["PROMPT"]
-    else:
-        prompt = input("Enter your prompt: ")
+        # Check for a prompt file in the repository root
+        prompt_file_path = os.path.join(os.path.dirname(__file__), "..", "prompt.txt")
+        if os.path.exists(prompt_file_path):
+            try:
+                with open(prompt_file_path, "r", encoding="utf-8") as f:
+                    prompt = f.read()
+                logging.info(f"Using prompt from file: {prompt_file_path}")
+            except Exception as e:
+                logging.exception("Failed to read prompt file")
+                prompt = ""
+        elif config["PROMPT"]:
+            prompt = config["PROMPT"]
+        else:
+            prompt = input("Enter your prompt: ")
 
-    llm_responses = fetch_llm_responses(client, prompt, models)
+        if not prompt:
+            logging.error("No prompt provided. Exiting.")
+            return
 
-    # Optionally print individual responses from each LLM
-    print_individual_responses = False
-    if print_individual_responses:
-        print("Responses from individual LLMs:")
-        for i, response in enumerate(llm_responses):
-            print(f"Model {i+1} ({models[i]}): {response}")
+        llm_responses = fetch_llm_responses(client, prompt, models)
 
-    combined_prompt = combine_responses(prompt, models, llm_responses)
-    refinement_model = config["REFINEMENT_MODEL_NAME"]
-    refined_answer = refine_response(client, combined_prompt, refinement_model)
-    
-    print(f"\nCombined and Refined Answer (using {refinement_model}):")
-    print(refined_answer)
+        # Optionally log individual responses from each LLM
+        print_individual_responses = False
+        if print_individual_responses:
+            logging.info("Responses from individual LLMs:")
+            for i, response in enumerate(llm_responses):
+                logging.info(f"Model {i+1} ({models[i]}): {response}")
+
+        combined_prompt = combine_responses(prompt, models, llm_responses)
+        refinement_model = config["REFINEMENT_MODEL_NAME"]
+        refined_answer = refine_response(client, combined_prompt, refinement_model)
+        
+        logging.info(f"Combined and Refined Answer (using {refinement_model}):")
+        print(refined_answer)
+    except Exception as ex:
+        logging.exception("An error occurred in main execution")
 
 if __name__ == '__main__':
     main()
