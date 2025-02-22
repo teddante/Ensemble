@@ -2,6 +2,7 @@ import logging
 from openai import OpenAI
 import os
 from config import load_config
+import asyncio  # Added import for asyncio
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -18,21 +19,22 @@ def init_client(config):
         logging.exception("Failed to initialize client")
         raise
 
-# Fetches responses from each LLM model specified in the configuration
-# Iterates through the models, sends the prompt, and collects each response
-def fetch_llm_responses(client, prompt, models):
-    responses = []
-    for model in models:
-        logging.info(f"Generating response from model: {model}...")
-        try:
-            completion = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            responses.append(completion.choices[0].message.content)
-        except Exception as e:
-            logging.exception(f"Error generating response from model {model}")
-            responses.append(f"Error: {e}")
+# New async helper function to fetch a single response
+async def fetch_single_response(client, prompt, model):
+    logging.info(f"Generating response from model: {model}...")
+    try:
+        completion = await asyncio.to_thread(client.chat.completions.create,
+                                             model=model,
+                                             messages=[{"role": "user", "content": prompt}])
+        return completion.choices[0].message.content
+    except Exception as e:
+        logging.exception(f"Error generating response from model {model}")
+        return f"Error: {e}"
+
+# Updated function to fetch responses in parallel using asyncio
+async def fetch_llm_responses(client, prompt, models):
+    tasks = [asyncio.create_task(fetch_single_response(client, prompt, model)) for model in models]
+    responses = await asyncio.gather(*tasks)
     return responses
 
 # Combines individual LLM responses into a single prompt for refinement
@@ -48,22 +50,20 @@ def combine_responses(prompt, models, responses):
         combined_prompt += f"Model {i+1} Response ({models[i]}):\n{response}\n\n"
     return combined_prompt
 
-# Refines the combined prompt using a designated LLM model to produce the final answer
-def refine_response(client, combined_prompt, refinement_model):
+# Updated refine_response to be asynchronous
+async def refine_response(client, combined_prompt, refinement_model):
     logging.info(f"Generating refined answer using model: {refinement_model}...")
     try:
-        completion = client.chat.completions.create(
-            model=refinement_model,
-            messages=[{"role": "user", "content": combined_prompt}],
-        )
+        completion = await asyncio.to_thread(client.chat.completions.create,
+                                             model=refinement_model,
+                                             messages=[{"role": "user", "content": combined_prompt}])
         return completion.choices[0].message.content
     except Exception as e:
         logging.exception("Error during refining response")
         raise
 
-# Main execution function
-# Loads configuration, initiates clients, fetches and refines responses, and prints the final answer
-def main():
+# Updated main execution function to be asynchronous
+async def main():
     try:
         config = load_config()
         client = init_client(config)
@@ -88,7 +88,8 @@ def main():
             logging.error("No prompt provided. Exiting.")
             return
 
-        llm_responses = fetch_llm_responses(client, prompt, models)
+        # Fetch LLM responses in parallel
+        llm_responses = await fetch_llm_responses(client, prompt, models)
 
         # Optionally log individual responses from each LLM
         print_individual_responses = False
@@ -99,7 +100,7 @@ def main():
 
         combined_prompt = combine_responses(prompt, models, llm_responses)
         refinement_model = config["REFINEMENT_MODEL_NAME"]
-        refined_answer = refine_response(client, combined_prompt, refinement_model)
+        refined_answer = await refine_response(client, combined_prompt, refinement_model)
         
         logging.info(f"Combined and Refined Answer (using {refinement_model}):")
         print(refined_answer)
@@ -107,4 +108,4 @@ def main():
         logging.exception("An error occurred in main execution")
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())  # Use asyncio.run to execute the async main
