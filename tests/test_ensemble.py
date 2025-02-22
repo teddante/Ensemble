@@ -4,7 +4,8 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 import unittest
-from unittest.mock import patch, MagicMock
+import asyncio
+from unittest.mock import patch, MagicMock, AsyncMock
 import ensemble
 
 
@@ -38,7 +39,7 @@ class TestEnsembleFunctions(unittest.TestCase):
     def test_fetch_llm_responses(self):
         prompt = "Test prompt"
         models = ["model1", "model2"]
-        responses = ensemble.fetch_llm_responses(self.dummy_client, prompt, models)
+        responses = asyncio.run(ensemble.fetch_llm_responses(self.dummy_client, prompt, models))
         self.assertEqual(len(responses), len(models))
         self.assertEqual(responses[0], "Response from model1")
         self.assertEqual(responses[1], "Response from model2")
@@ -57,14 +58,14 @@ class TestEnsembleFunctions(unittest.TestCase):
         refinement_model = "refinement_model"
         # Adjust dummy to return refined message
         self.dummy_client.chat.completions.create.side_effect = lambda model, messages: DummyResponse(f"Refined {model}")
-        refined = ensemble.refine_response(self.dummy_client, combined_prompt, refinement_model)
+        refined = asyncio.run(ensemble.refine_response(self.dummy_client, combined_prompt, refinement_model))
         self.assertEqual(refined, f"Refined {refinement_model}")
 
 
 class TestEnsembleIntegration(unittest.TestCase):
     @patch('ensemble.load_config')
-    @patch('ensemble.fetch_llm_responses')
-    @patch('ensemble.refine_response')
+    @patch('ensemble.fetch_llm_responses', new_callable=AsyncMock)
+    @patch('ensemble.refine_response', new_callable=AsyncMock)
     def test_main_integration(self, mock_refine, mock_fetch, mock_load_config):
         # Setup dummy config
         dummy_config = {
@@ -80,11 +81,11 @@ class TestEnsembleIntegration(unittest.TestCase):
         # Patch input to prevent blocking
         with patch('ensemble.input', return_value=""):
             # Capture print output
-            import io, sys
+            import io
             capturedOutput = io.StringIO()
             sys.stdout = capturedOutput
             try:
-                ensemble.main()
+                asyncio.run(ensemble.main())
             finally:
                 sys.stdout = sys.__stdout__
             self.assertIn("Refined Answer", capturedOutput.getvalue())
