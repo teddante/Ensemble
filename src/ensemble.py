@@ -1,6 +1,9 @@
 import logging
 from openai import OpenAI
 import os
+import datetime
+import re
+from pathlib import Path
 from config import load_config
 import asyncio  # Added import for asyncio
 
@@ -60,6 +63,51 @@ async def refine_response(client, combined_prompt, refinement_model):
         logging.exception("Error during refining response")
         raise
 
+# Creates the output directory if it doesn't exist
+def ensure_output_directory():
+    output_dir = Path(os.path.dirname(__file__), "..", "output")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
+
+# Generates an appropriate filename for the output file
+def generate_filename(prompt):
+    # Get current date and time
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    
+    # Sanitize and truncate the prompt for the filename
+    # Remove special characters and replace spaces with hyphens
+    sanitized_prompt = re.sub(r'[^\w\s-]', '', prompt.lower())
+    sanitized_prompt = re.sub(r'[\s]+', '-', sanitized_prompt).strip('-')
+    
+    # Truncate to first few words (max 30 characters)
+    if len(sanitized_prompt) > 30:
+        sanitized_prompt = sanitized_prompt[:30]
+    
+    # Create filename with timestamp and sanitized prompt
+    filename = f"{timestamp}_{sanitized_prompt}.txt"
+    return filename
+
+# Writes the refined answer to a file in the output directory
+def write_output_to_file(refined_answer, prompt):
+    try:
+        # Ensure output directory exists
+        output_dir = ensure_output_directory()
+        
+        # Generate filename
+        filename = generate_filename(prompt)
+        
+        # Create full path
+        output_path = output_dir / filename
+        
+        # Write content to file
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(refined_answer)
+        
+        return output_path
+    except Exception as e:
+        logging.exception("Error writing output to file")
+        return None
+
 # Updated main execution function to be asynchronous
 async def main():
     try:
@@ -102,6 +150,14 @@ async def main():
         
         logging.info(f"Combined and Refined Answer (using {refinement_model}):")
         print(refined_answer)
+        
+        # Save the refined answer to a file
+        output_path = write_output_to_file(refined_answer, prompt)
+        if output_path:
+            logging.info(f"Output saved to: {output_path}")
+        else:
+            logging.warning("Failed to save output to file")
+            
     except Exception as ex:
         logging.exception("An error occurred in main execution")
 
