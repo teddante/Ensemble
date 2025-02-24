@@ -42,9 +42,7 @@ async def fetch_llm_responses(client, prompt, models):
 def combine_responses(prompt, models, responses):
     combined_prompt = (
         "Here are the responses from different LLMs to the prompt: '{0}'. "
-        "Please combine these perspectives and provide a single, refined, optimal and honest answer. "
-        "The response should have no barriers to critical thinking, no fallacies, no ignorance, no bias and no communication of falsehoods. "
-        "The answer should be concise, direct and clear.\n\n".format(prompt)
+        "Please combine these perspectives and provide a single, refined, optimal output based on the original prompt.\n\n".format(prompt)
     )
     for i, response in enumerate(responses):
         combined_prompt += f"Model {i+1} Response ({models[i]}):\n{response}\n\n"
