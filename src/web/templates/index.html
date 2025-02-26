@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ensemble - Multi-LLM Response Generator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            resize: vertical;
+            min-height: 120px;
+            font-family: inherit;
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            display: block;
+            margin: 0 auto;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .response-container {
+            margin-top: 30px;
+            display: none;
+        }
+        .loading {
+            text-align: center;
+            display: none;
+            margin-top: 20px;
+        }
+        .loading:after {
+            content: '.';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60% { content: '...'; }
+            80%, 100% { content: ''; }
+        }
+        .accordion {
+            margin-top: 20px;
+        }
+        .accordion-header {
+            background-color: #eee;
+            color: #444;
+            cursor: pointer;
+            padding: 18px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 15px;
+            transition: 0.4s;
+            border-radius: 4px;
+            margin-bottom: 5px;
+        }
+        .active-header, .accordion-header:hover {
+            background-color: #ddd;
+        }
+        .accordion-content {
+            padding: 0 18px;
+            background-color: white;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.2s ease-out;
+            border-radius: 0 0 4px 4px;
+            border: 1px solid #ddd;
+            border-top: none;
+        }
+        .model-name {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        #refined-answer {
+            white-space: pre-wrap;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            margin-top: 10px;
+        }
+        .error {
+            color: red;
+            text-align: center;
+            margin-top: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Ensemble - Multi-LLM Response Generator</h1>
+        
+        <form id="prompt-form">
+            <textarea id="prompt-input" placeholder="Enter your prompt here..."></textarea>
+            <button type="submit" id="generate-btn">Generate Responses</button>
+        </form>
+        
+        <div class="loading" id="loading-indicator">Generating responses</div>
+        <div class="error" id="error-message"></div>
+        
+        <div class="response-container" id="response-container">
+            <h2>Refined Answer</h2>
+            <div id="refined-answer"></div>
+            
+            <div class="accordion">
+                <button class="accordion-header">View Individual Model Responses</button>
+                <div class="accordion-content">
+                    <div id="individual-responses"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get DOM elements
+            const promptForm = document.getElementById('prompt-form');
+            const promptInput = document.getElementById('prompt-input');
+            const generateBtn = document.getElementById('generate-btn');
+            const loadingIndicator = document.getElementById('loading-indicator');
+            const errorMessage = document.getElementById('error-message');
+            const responseContainer = document.getElementById('response-container');
+            const refinedAnswer = document.getElementById('refined-answer');
+            const individualResponses = document.getElementById('individual-responses');
+            
+            // Set up event listeners
+            promptForm.addEventListener('submit', handleSubmit);
+            
+            // Set up accordion
+            const acc = document.querySelector('.accordion-header');
+            acc.addEventListener('click', function() {
+                this.classList.toggle('active-header');
+                const content = this.nextElementSibling;
+                if (content.style.maxHeight) {
+                    content.style.maxHeight = null;
+                } else {
+                    content.style.maxHeight = content.scrollHeight + "px";
+                }
+            });
+            
+            // Handle form submission
+            async function handleSubmit(e) {
+                e.preventDefault();
+                
+                // Get prompt value
+                const prompt = promptInput.value.trim();
+                if (!prompt) {
+                    showError('Please enter a prompt');
+                    return;
+                }
+                
+                // Show loading state
+                setLoading(true);
+                
+                try {
+                    // Send request to the server
+                    const formData = new FormData();
+                    formData.append('prompt', prompt);
+                    
+                    const response = await fetch('/generate', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    // Parse JSON response
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to generate responses');
+                    }
+                    
+                    // Display the results
+                    displayResults(data);
+                } catch (error) {
+                    showError(error.message);
+                } finally {
+                    setLoading(false);
+                }
+            }
+            
+            // Display the generated results
+            function displayResults(data) {
+                // Show response container
+                responseContainer.style.display = 'block';
+                
+                // Display refined answer
+                refinedAnswer.textContent = data.refined_answer;
+                
+                // Display individual responses
+                individualResponses.innerHTML = '';
+                data.individual_responses.forEach((response, index) => {
+                    const modelName = data.models[index];
+                    const responseDiv = document.createElement('div');
+                    responseDiv.innerHTML = `
+                        <h3 class="model-name">Model ${index + 1}: ${modelName}</h3>
+                        <p style="white-space: pre-wrap;">${response}</p>
+                        <hr>
+                    `;
+                    individualResponses.appendChild(responseDiv);
+                });
+            }
+            
+            // Set loading state
+            function setLoading(isLoading) {
+                if (isLoading) {
+                    loadingIndicator.style.display = 'block';
+                    generateBtn.disabled = true;
+                    errorMessage.style.display = 'none';
+                    responseContainer.style.display = 'none';
+                } else {
+                    loadingIndicator.style.display = 'none';
+                    generateBtn.disabled = false;
+                }
+            }
+            
+            // Show error message
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
