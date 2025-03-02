@@ -53,15 +53,53 @@ def combine_responses(prompt, models, responses):
 
 # Updated refine_response to be asynchronous
 async def refine_response(client, combined_prompt, refinement_model):
+    """
+    Refines the combined responses from multiple LLMs into a single coherent answer.
+    
+    Args:
+        client: The OpenAI client instance
+        combined_prompt: The combined responses and original prompt
+        refinement_model: The model ID to use for refining the response
+        
+    Returns:
+        str: The refined response or an error message
+    """
     logging.info(f"Generating refined answer using model: {refinement_model}...")
-    try:
-        completion = await asyncio.to_thread(client.chat.completions.create,
-                                             model=refinement_model,
-                                             messages=[{"role": "user", "content": combined_prompt}])
-        return completion.choices[0].message.content
-    except Exception as e:
-        logging.exception("Error during refining response")
-        raise
+    
+    max_retries = 3
+    retry_delay = 2  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            completion = await asyncio.to_thread(
+                client.chat.completions.create,
+                model=refinement_model,
+                messages=[
+                    {
+                        "role": "system", 
+                        "content": "You are a helpful assistant that synthesizes multiple AI responses into a single coherent, accurate, and comprehensive answer."
+                    },
+                    {
+                        "role": "user", 
+                        "content": combined_prompt
+                    }
+                ],
+            )
+            
+            # Successfully got a response
+            refined_content = completion.choices[0].message.content
+            logging.info("Successfully refined the response")
+            return refined_content
+            
+        except Exception as e:
+            logging.warning(f"Attempt {attempt + 1}/{max_retries} failed: {str(e)}")
+            if attempt < max_retries - 1:
+                logging.info(f"Retrying in {retry_delay} seconds...")
+                await asyncio.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+            else:
+                logging.error("All refinement attempts failed")
+                raise Exception(f"Failed to refine responses after {max_retries} attempts: {str(e)}")
 
 # Creates the output directory if it doesn't exist
 def ensure_output_directory():
