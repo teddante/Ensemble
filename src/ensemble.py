@@ -16,6 +16,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Helper function to get a preview of text with a specified max length
+def get_text_preview(text, max_length=150):
+    """Returns a preview of the text with specified maximum length."""
+    if not text:
+        return "Empty response"
+    if len(text) <= max_length:
+        return text
+    return text[:max_length] + "..."
+
 # Initializes the OpenRouter client using configuration
 # Returns an instance of the OpenAI client
 def init_client(config):
@@ -35,7 +44,7 @@ def init_client(config):
 async def fetch_single_response(client, prompt, model):
     start_time = time.time()
     logger.info(f"Starting request to model: {model}")
-    logger.debug(f"Prompt for {model}: {prompt[:100]}..." if len(prompt) > 100 else prompt)
+    logger.debug(f"Prompt for {model}: {get_text_preview(prompt)}")
     
     try:
         completion = await asyncio.to_thread(client.chat.completions.create,
@@ -43,9 +52,12 @@ async def fetch_single_response(client, prompt, model):
                                              messages=[{"role": "user", "content": prompt}])
         
         response_time = time.time() - start_time
-        logger.info(f"Response received from {model} in {response_time:.2f} seconds")
         response_content = completion.choices[0].message.content
-        logger.debug(f"Response from {model} (first 100 chars): {response_content[:100]}...")
+        preview = get_text_preview(response_content)
+        
+        logger.info(f"Response received from {model} in {response_time:.2f} seconds")
+        logger.info(f"Preview from {model}: {preview}")
+        logger.debug(f"Full response from {model}: {response_content}")
         
         return response_content
     except Exception as e:
@@ -130,6 +142,8 @@ async def refine_response(client, combined_prompt, refinement_model):
             refined_content = completion.choices[0].message.content
             total_time = time.time() - start_time
             logger.info(f"Successfully refined the response in {total_time:.2f} seconds")
+            preview = get_text_preview(refined_content)
+            logger.info(f"Refined response preview: {preview}")
             logger.debug(f"Refined response length: {len(refined_content)} characters")
             return refined_content
             
@@ -219,16 +233,19 @@ async def main():
                 with open(prompt_file_path, "r", encoding="utf-8") as f:
                     prompt = f.read()
                 logger.info(f"Using prompt from file: {prompt_file_path} ({len(prompt)} characters)")
+                logger.info(f"Prompt preview: {get_text_preview(prompt)}")
             except Exception as e:
                 logger.exception(f"Failed to read prompt file: {str(e)}")
                 prompt = ""
         elif config["PROMPT"]:
             prompt = config["PROMPT"]
             logger.info(f"Using prompt from configuration ({len(prompt)} characters)")
+            logger.info(f"Prompt preview: {get_text_preview(prompt)}")
         else:
             logger.info("No prompt found in file or config, requesting from user")
             prompt = input("Enter your prompt: ")
             logger.info(f"Prompt entered by user ({len(prompt)} characters)")
+            logger.info(f"Prompt preview: {get_text_preview(prompt)}")
 
         if not prompt:
             logger.error("No prompt provided. Exiting.")
