@@ -1,10 +1,11 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, make_response
 import sys
 import os
 import asyncio
 from pathlib import Path
 import logging
 import functools
+import json
 from werkzeug.exceptions import HTTPException
 
 # Add the src directory to the Python path so we can import ensemble and config modules
@@ -17,7 +18,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 templates_dir = os.path.join(current_dir, "templates")
 static_dir = os.path.join(current_dir, "static")
 
-app = Flask(__name__, 
+app = Flask(__name__,
             template_folder=templates_dir,
             static_folder=static_dir)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
@@ -51,37 +52,71 @@ async def generate():
         prompt = request.form.get('prompt', '')
         if not prompt:
             return jsonify({'error': 'No prompt provided'}), 400
-        
+
+        # Get session ID (replace with a more robust session management)
+        session_id = request.cookies.get('session_id')
+        if not session_id:
+            session_id = os.urandom(16).hex()
+
+        # Load conversation history from file
+        history_file = f"conversation_{session_id}.json"
+        history_path = Path(app.root_path) / history_file
+
+        if history_path.exists():
+            with open(history_path, 'r') as f:
+                conversation = json.load(f)
+        else:
+            conversation = []
+
+        # Append user's prompt to conversation history
+        conversation.append({"role": "user", "content": prompt})
+
         # Load configuration
         config = load_config()
-        
+
         # Initialize OpenRouter client
         client = init_client(config)
-        
+
         # Get models to use
         models = config["MODELS"]
         if not models:
             return jsonify({'error': 'No models configured'}), 400
-        
+
+        # Construct full prompt with conversation history
+        full_prompt = "\\n".join([f"{msg['role']}: {msg['content']}" for msg in conversation])
+
+        logging.info(f"Full prompt with conversation history: {full_prompt}")
+
         # Fetch LLM responses
-        llm_responses = await fetch_llm_responses(client, prompt, models)
-        
+        llm_responses = await fetch_llm_responses(client, full_prompt, models)
+
         # Combine responses
-        combined_prompt = combine_responses(prompt, models, llm_responses)
-        
+        combined_prompt = combine_responses(full_prompt, models, llm_responses)
+
         # Refine the response
         refinement_model = config["REFINEMENT_MODEL_NAME"]
         refined_answer = await refine_response(client, combined_prompt, refinement_model)
-        
+
+        # Append LLM's response to conversation history
+        conversation.append({"role": "assistant", "content": refined_answer})
+
+        # Save conversation history to file
+        with open(history_path, 'w') as f:
+            json.dump(conversation, f)
+
         # Prepare results to return
         results = {
             'models': models,
             'individual_responses': llm_responses,
             'refined_answer': refined_answer
         }
-        
-        return jsonify(results)
-    
+
+        # Create response with session ID cookie
+        response = jsonify(results)
+        response.set_cookie('session_id', session_id)
+
+        return response
+
     except Exception as e:
         logging.exception("Error generating response")
         return jsonify({'error': str(e)}), 500
@@ -104,7 +139,7 @@ def run_web_app():
     # Ensure templates and static directories exist
     Path(templates_dir).mkdir(parents=True, exist_ok=True)
     Path(static_dir).mkdir(parents=True, exist_ok=True)
-    
+
     # Run the Flask app
     app.run(host='0.0.0.0', port=5000, debug=True)
 

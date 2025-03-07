@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ensemble - Multi-LLM Response Generator</title>
+    <title>Ensemble - Conversational AI</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -25,15 +25,23 @@
             text-align: center;
             margin-bottom: 30px;
         }
+        #conversation-history {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            white-space: pre-wrap;
+        }
         textarea {
             width: 100%;
             padding: 12px;
             border: 1px solid #ddd;
             border-radius: 4px;
             resize: vertical;
-            min-height: 120px;
+            min-height: 80px;
             font-family: inherit;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
         }
         button {
             background-color: #3498db;
@@ -73,48 +81,6 @@
             60% { content: '...'; }
             80%, 100% { content: ''; }
         }
-        .accordion {
-            margin-top: 20px;
-        }
-        .accordion-header {
-            background-color: #eee;
-            color: #444;
-            cursor: pointer;
-            padding: 18px;
-            width: 100%;
-            border: none;
-            text-align: left;
-            outline: none;
-            font-size: 15px;
-            transition: 0.4s;
-            border-radius: 4px;
-            margin-bottom: 5px;
-        }
-        .active-header, .accordion-header:hover {
-            background-color: #ddd;
-        }
-        .accordion-content {
-            padding: 0 18px;
-            background-color: white;
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.2s ease-out;
-            border-radius: 0 0 4px 4px;
-            border: 1px solid #ddd;
-            border-top: none;
-        }
-        .model-name {
-            font-weight: bold;
-            color: #2c3e50;
-        }
-        #refined-answer {
-            white-space: pre-wrap;
-            padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background-color: #f9f9f9;
-            margin-top: 10px;
-        }
         .error {
             color: red;
             text-align: center;
@@ -125,131 +91,94 @@
 </head>
 <body>
     <div class="container">
-        <h1>Ensemble - Multi-LLM Response Generator</h1>
-        
+        <h1>Ensemble - Conversational AI</h1>
+
+        <div id="conversation-history"></div>
+
         <form id="prompt-form">
-            <textarea id="prompt-input" placeholder="Enter your prompt here..."></textarea>
-            <button type="submit" id="generate-btn">Generate Responses</button>
+            <textarea id="prompt-input" placeholder="Enter your message here..."></textarea>
+            <button type="submit" id="generate-btn">Send</button>
         </form>
-        
-        <div class="loading" id="loading-indicator">Generating responses</div>
+
+        <div class="loading" id="loading-indicator">Generating response</div>
         <div class="error" id="error-message"></div>
-        
-        <div class="response-container" id="response-container">
-            <h2>Refined Answer</h2>
-            <div id="refined-answer"></div>
-            
-            <div class="accordion">
-                <button class="accordion-header">View Individual Model Responses</button>
-                <div class="accordion-content">
-                    <div id="individual-responses"></div>
-                </div>
-            </div>
-        </div>
     </div>
-    
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Get DOM elements
+            const conversationHistory = document.getElementById('conversation-history');
             const promptForm = document.getElementById('prompt-form');
             const promptInput = document.getElementById('prompt-input');
             const generateBtn = document.getElementById('generate-btn');
             const loadingIndicator = document.getElementById('loading-indicator');
             const errorMessage = document.getElementById('error-message');
-            const responseContainer = document.getElementById('response-container');
-            const refinedAnswer = document.getElementById('refined-answer');
-            const individualResponses = document.getElementById('individual-responses');
-            
-            // Set up event listeners
-            promptForm.addEventListener('submit', handleSubmit);
-            
-            // Set up accordion
-            const acc = document.querySelector('.accordion-header');
-            acc.addEventListener('click', function() {
-                this.classList.toggle('active-header');
-                const content = this.nextElementSibling;
-                if (content.style.maxHeight) {
-                    content.style.maxHeight = null;
-                } else {
-                    content.style.maxHeight = content.scrollHeight + "px";
-                }
-            });
-            
+
             // Handle form submission
+            promptForm.addEventListener('submit', handleSubmit);
+
             async function handleSubmit(e) {
                 e.preventDefault();
-                
+
                 // Get prompt value
                 const prompt = promptInput.value.trim();
                 if (!prompt) {
-                    showError('Please enter a prompt');
+                    showError('Please enter a message');
                     return;
                 }
-                
+
                 // Show loading state
                 setLoading(true);
-                
+
                 try {
                     // Send request to the server
                     const formData = new FormData();
                     formData.append('prompt', prompt);
-                    
+
                     const response = await fetch('/generate', {
                         method: 'POST',
                         body: formData
                     });
-                    
+
                     // Parse JSON response
                     const data = await response.json();
-                    
+
                     if (!response.ok) {
-                        throw new Error(data.error || 'Failed to generate responses');
+                        throw new Error(data.error || 'Failed to generate response');
                     }
-                    
+
                     // Display the results
-                    displayResults(data);
+                    displayResults(prompt, data.refined_answer);
                 } catch (error) {
                     showError(error.message);
                 } finally {
                     setLoading(false);
                 }
             }
-            
+
             // Display the generated results
-            function displayResults(data) {
-                // Show response container
-                responseContainer.style.display = 'block';
-                
-                // Display refined answer
-                refinedAnswer.textContent = data.refined_answer;
-                
-                // Display individual responses
-                individualResponses.innerHTML = '';
-                data.individual_responses.forEach((response, index) => {
-                    const modelName = data.models[index];
-                    const responseDiv = document.createElement('div');
-                    responseDiv.innerHTML = `
-                        <h3 class="model-name">Model ${index + 1}: ${modelName}</h3>
-                        <p style="white-space: pre-wrap;">${response}</p>
-                        <hr>
-                    `;
-                    individualResponses.appendChild(responseDiv);
-                });
+            function displayResults(userPrompt, refinedAnswer) {
+                // Update conversation history
+                const userMessage = `User: ${userPrompt}\\n`;
+                const assistantMessage = `Assistant: ${refinedAnswer}\\n`;
+                conversationHistory.textContent += userMessage + assistantMessage;
+
+                // Clear prompt input
+                promptInput.value = '';
             }
-            
+
             // Set loading state
             function setLoading(isLoading) {
                 if (isLoading) {
                     loadingIndicator.style.display = 'block';
                     generateBtn.disabled = true;
                     errorMessage.style.display = 'none';
-                    responseContainer.style.display = 'none';
                 } else {
                     loadingIndicator.style.display = 'none';
                     generateBtn.disabled = false;
                 }
             }
-            
+
             // Show error message
             function showError(message) {
                 errorMessage.textContent = message;
