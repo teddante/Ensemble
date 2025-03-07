@@ -2,6 +2,8 @@
 
 Ensemble is a powerful tool that leverages multiple Large Language Models (LLMs) to provide a multi-perspective answer for any given prompt. By combining diverse responses and refining them, Ensemble delivers a clear, concise, and balanced final answer.
 
+Ensemble's architecture involves fetching responses from multiple LLMs using the OpenRouter API, combining these responses, and then refining the combined response using a dedicated refinement model. The core logic is implemented in `src/ensemble.py`, while the web interface is located in the `src/web` directory.
+
 ## Features
 
 - **Multi-LLM Integration:** Interact with various language models concurrently to gain comprehensive insights.
@@ -40,9 +42,16 @@ Execute the main script to generate and refine responses:
 python src/ensemble.py
 ```
 
-The script will:
+## Web Interface
 
-- Load configuration from the environment.
-- Initialize the OpenRouter client.
-- Fetch responses from each specified LLM.
-- Combine and refine the responses into a final, cohesive answer.
+Ensemble provides a web interface for interacting with the system. The web interface is built using Flask and is located in the `src/web` directory.
+
+To run the web application:
+
+```bash
+python src/web/app.py
+```
+
+## License
+
+Ensemble is licensed under the MIT License. See the `LICENSE` file for more information.
