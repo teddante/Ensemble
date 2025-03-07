@@ -175,3 +175,6 @@ prompt.txt
 
 # Generated output files
 output/
+
+# Ignore conversation history files
+conversation_*.json
