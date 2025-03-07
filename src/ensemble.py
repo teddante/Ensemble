@@ -15,6 +15,9 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger(__name__)
+def log_with_preview(logger, message, text, max_length=150):
+    preview = get_text_preview(text, max_length)
+    logger.info(f"{message}: {preview}")
 
 # Helper function to get a preview of text with a specified max length
 def get_text_preview(text, max_length=150):
@@ -34,7 +37,7 @@ def init_client(config):
             base_url="https://openrouter.ai/api/v1",
             api_key=config["OPENROUTER_API_KEY"],
         )
-        logger.debug("OpenRouter client initialized successfully")
+        
         return client
     except Exception as e:
         logger.exception("Failed to initialize client: %s", str(e))
@@ -44,7 +47,7 @@ def init_client(config):
 async def fetch_single_response(client, prompt, model):
     start_time = time.time()
     logger.info(f"Starting request to model: {model}")
-    logger.debug(f"Prompt for {model}: {get_text_preview(prompt)}")
+    
     
     try:
         completion = await asyncio.to_thread(client.chat.completions.create,
@@ -56,8 +59,8 @@ async def fetch_single_response(client, prompt, model):
         preview = get_text_preview(response_content)
         
         logger.info(f"Response received from {model} in {response_time:.2f} seconds")
-        logger.info(f"Preview from {model}: {preview}")
-        logger.debug(f"Full response from {model}: {response_content}")
+        log_with_preview(logger, f"Preview from {model}", response_content)
+        
         
         return response_content
     except Exception as e:
@@ -98,7 +101,7 @@ def combine_responses(prompt, models, responses):
     for i, response in enumerate(responses):
         combined_prompt += f"Model {i+1} Response ({models[i]}):\n{response}\n\n"
     
-    logger.debug(f"Combined prompt created with {len(combined_prompt)} characters")
+    
     return combined_prompt
 
 # Updated refine_response to be asynchronous
@@ -143,7 +146,7 @@ async def refine_response(client, combined_prompt, refinement_model):
             total_time = time.time() - start_time
             logger.info(f"Successfully refined the response in {total_time:.2f} seconds")
             preview = get_text_preview(refined_content)
-            logger.info(f"Refined response preview: {preview}")
+            log_with_preview(logger, "Refined response preview", refined_content)
             logger.debug(f"Refined response length: {len(refined_content)} characters")
             return refined_content
             
@@ -160,15 +163,15 @@ async def refine_response(client, combined_prompt, refinement_model):
 
 # Creates the output directory if it doesn't exist
 def ensure_output_directory():
-    logger.debug("Ensuring output directory exists")
+    
     output_dir = Path(os.path.dirname(__file__), "..", "output")
     output_dir.mkdir(parents=True, exist_ok=True)
-    logger.debug(f"Output directory path: {output_dir}")
+    
     return output_dir
 
 # Generates an appropriate filename for the output file
 def generate_filename(prompt):
-    logger.debug("Generating output filename from prompt")
+    
     # Get current date and time
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     
@@ -179,12 +182,12 @@ def generate_filename(prompt):
     
     # Truncate to first few words (max 30 characters)
     if len(sanitized_prompt) > 30:
-        logger.debug(f"Truncating prompt for filename from {len(sanitized_prompt)} to 30 characters")
+        
         sanitized_prompt = sanitized_prompt[:30]
     
     # Create filename with timestamp and sanitized prompt
     filename = f"{timestamp}_{sanitized_prompt}.txt"
-    logger.debug(f"Generated filename: {filename}")
+    
     return filename
 
 # Writes the refined answer to a file in the output directory
@@ -226,26 +229,26 @@ async def main():
 
         # Check for a prompt file in the repository root
         prompt_file_path = os.path.join(os.path.dirname(__file__), "..", "prompt.txt")
-        logger.debug(f"Looking for prompt file at: {prompt_file_path}")
+        
         
         if os.path.exists(prompt_file_path):
             try:
                 with open(prompt_file_path, "r", encoding="utf-8") as f:
                     prompt = f.read()
-                logger.info(f"Using prompt from file: {prompt_file_path} ({len(prompt)} characters)")
-                logger.info(f"Prompt preview: {get_text_preview(prompt)}")
+                log_with_preview(logger, f"Using prompt from file: {prompt_file_path} ({len(prompt)} characters)", prompt)
+                log_with_preview(logger, "Prompt preview", prompt)
             except Exception as e:
                 logger.exception(f"Failed to read prompt file: {str(e)}")
                 prompt = ""
         elif config["PROMPT"]:
             prompt = config["PROMPT"]
-            logger.info(f"Using prompt from configuration ({len(prompt)} characters)")
-            logger.info(f"Prompt preview: {get_text_preview(prompt)}")
+            log_with_preview(logger, f"Using prompt from configuration ({len(prompt)} characters)", prompt)
+            log_with_preview(logger, "Prompt preview", prompt)
         else:
             logger.info("No prompt found in file or config, requesting from user")
             prompt = input("Enter your prompt: ")
-            logger.info(f"Prompt entered by user ({len(prompt)} characters)")
-            logger.info(f"Prompt preview: {get_text_preview(prompt)}")
+            log_with_preview(logger, f"Prompt entered by user ({len(prompt)} characters)", prompt)
+            log_with_preview(logger, "Prompt preview", prompt)
 
         if not prompt:
             logger.error("No prompt provided. Exiting.")
