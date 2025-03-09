@@ -42,16 +42,6 @@ Execute the main script to generate and refine responses:
 python src/ensemble.py
 ```
 
-## Web Interface
-
-Ensemble provides a web interface for interacting with the system. The web interface is built using Flask and is located in the `src/web` directory.
-
-To run the web application:
-
-```bash
-python src/web/app.py
-```
-
 ## License
 
 Ensemble is licensed under the MIT License. See the `LICENSE` file for more information.
