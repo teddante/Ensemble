@@ -213,6 +213,49 @@ def write_output_to_file(refined_answer, prompt):
         logger.exception(f"Error writing output to file: {str(e)}")
         return None
 
+# Function to get the prompt from file, config, or user input
+def get_prompt(config):
+    """
+    Get the prompt from one of three sources in order of priority:
+    1. From prompt.txt file in repository root
+    2. From configuration
+    3. From user input
+    
+    Args:
+        config: The loaded configuration dictionary
+        
+    Returns:
+        str: The prompt text or empty string if no prompt could be obtained
+    """
+    logger.info("Acquiring prompt")
+    
+    # Check for a prompt file in the repository root
+    prompt_file_path = os.path.join(os.path.dirname(__file__), "..", "prompt.txt")
+    
+    if os.path.exists(prompt_file_path):
+        try:
+            with open(prompt_file_path, "r", encoding="utf-8") as f:
+                prompt = f.read()
+            log_with_preview(logger, f"Using prompt from file: {prompt_file_path} ({len(prompt)} characters)", prompt)
+            log_with_preview(logger, "Prompt preview", prompt)
+            return prompt
+        except Exception as e:
+            logger.exception(f"Failed to read prompt file: {str(e)}")
+            # Fall through to next method if file reading fails
+    
+    if config.get("PROMPT"):
+        prompt = config["PROMPT"]
+        log_with_preview(logger, f"Using prompt from configuration ({len(prompt)} characters)", prompt)
+        log_with_preview(logger, "Prompt preview", prompt)
+        return prompt
+    
+    # If we get here, no prompt was found in file or config, ask the user
+    logger.info("No prompt found in file or config, requesting from user")
+    prompt = input("Enter your prompt: ")
+    log_with_preview(logger, f"Prompt entered by user ({len(prompt)} characters)", prompt)
+    log_with_preview(logger, "Prompt preview", prompt)
+    return prompt
+
 # Updated main execution function to be asynchronous
 async def main():
     start_time = time.time()
@@ -227,28 +270,7 @@ async def main():
         client = init_client(config)
         models = config["MODELS"]
 
-        # Check for a prompt file in the repository root
-        prompt_file_path = os.path.join(os.path.dirname(__file__), "..", "prompt.txt")
-        
-        
-        if os.path.exists(prompt_file_path):
-            try:
-                with open(prompt_file_path, "r", encoding="utf-8") as f:
-                    prompt = f.read()
-                log_with_preview(logger, f"Using prompt from file: {prompt_file_path} ({len(prompt)} characters)", prompt)
-                log_with_preview(logger, "Prompt preview", prompt)
-            except Exception as e:
-                logger.exception(f"Failed to read prompt file: {str(e)}")
-                prompt = ""
-        elif config["PROMPT"]:
-            prompt = config["PROMPT"]
-            log_with_preview(logger, f"Using prompt from configuration ({len(prompt)} characters)", prompt)
-            log_with_preview(logger, "Prompt preview", prompt)
-        else:
-            logger.info("No prompt found in file or config, requesting from user")
-            prompt = input("Enter your prompt: ")
-            log_with_preview(logger, f"Prompt entered by user ({len(prompt)} characters)", prompt)
-            log_with_preview(logger, "Prompt preview", prompt)
+        prompt = get_prompt(config)
 
         if not prompt:
             logger.error("No prompt provided. Exiting.")
