@@ -34,7 +34,7 @@ class TestEnsembleFunctions(unittest.TestCase):
         self.dummy_client.chat = MagicMock()
         self.dummy_client.chat.completions = MagicMock()
         # When completions.create is called, return a DummyResponse with the model name
-        self.dummy_client.chat.completions.create.side_effect = lambda model, messages: DummyResponse(f"Response from {model}")
+        self.dummy_client.chat.completions.create.side_effect = lambda model, **kwargs: DummyResponse(f"Response from {model}")
 
     def test_fetch_llm_responses(self):
         prompt = "Test prompt"
@@ -57,7 +57,7 @@ class TestEnsembleFunctions(unittest.TestCase):
         combined_prompt = "Combined prompt"
         refinement_model = "refinement_model"
         # Adjust dummy to return refined message
-        self.dummy_client.chat.completions.create.side_effect = lambda model, messages: DummyResponse(f"Refined {model}")
+        self.dummy_client.chat.completions.create.side_effect = lambda model, **kwargs: DummyResponse(f"Refined {model}")
         refined = asyncio.run(ensemble.refine_response(self.dummy_client, combined_prompt, refinement_model))
         self.assertEqual(refined, f"Refined {refinement_model}")
 

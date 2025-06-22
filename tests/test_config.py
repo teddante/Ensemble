@@ -4,10 +4,9 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 import unittest
-from unittest.mock import patch, mock_open
+from unittest.mock import patch
 import tempfile
 import shutil
-from pathlib import Path
 from config import load_config
 
 
@@ -66,7 +65,7 @@ class TestConfigFallback(unittest.TestCase):
     @patch('config.Path')
     @patch('config.dotenv_values')
     @patch('config.load_dotenv')
-    def test_both_env_files_exist(self, mock_load_dotenv, mock_dotenv_values, mock_path, mock_find_dotenv):
+    def test_both_env_files_exist(self, _mock_load_dotenv, mock_dotenv_values, mock_path, mock_find_dotenv):
         # Setup mocks
         mock_find_dotenv.return_value = "/path/to/user/.env"  # User .env file exists
         
@@ -104,7 +103,7 @@ class TestConfigFallback(unittest.TestCase):
     @patch('config.find_dotenv')
     @patch('config.Path')
     @patch('config.dotenv_values')
-    def test_no_env_files_exist(self, mock_dotenv_values, mock_path, mock_find_dotenv):
+    def test_no_env_files_exist(self, _mock_dotenv_values, mock_path, mock_find_dotenv):
         # Setup mocks
         mock_find_dotenv.return_value = None  # No user .env file
         
