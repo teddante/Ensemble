@@ -178,3 +178,41 @@ output/
 
 # Ignore conversation history files
 conversation_*.json
+
+# Ensemble-specific ignores
+*.txt
+!requirements*.txt
+!default.env
+
+# IDE specific files
+.vscode/
+.idea/
+
+# OS-specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# API keys and secrets
+.env.local
+.env.production
+secrets/
+*.key
+*.pem
+*.cert
+
+# Docker
+.dockerignore
+
+# Prometheus data
+prometheus-data/
+grafana-data/

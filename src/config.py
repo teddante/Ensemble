@@ -102,6 +102,27 @@ def load_config():
         else:
             config["REFINEMENT_MODEL_NAME"] = ""
     
+    # Set timeout configuration with environment-based defaults
+    if not config.get("REQUEST_TIMEOUT"):
+        # Use environment variable or default based on environment
+        env_timeout = os.getenv("REQUEST_TIMEOUT")
+        if env_timeout:
+            config["REQUEST_TIMEOUT"] = int(env_timeout)
+        else:
+            # Default timeouts based on environment
+            environment = os.getenv("ENVIRONMENT", "development").lower()
+            if environment == "production":
+                config["REQUEST_TIMEOUT"] = 30  # More aggressive in production
+            else:
+                config["REQUEST_TIMEOUT"] = 60  # More lenient in development
+    
+    # Set rate limiting configuration
+    if not config.get("RATE_LIMIT_PER_MINUTE"):
+        config["RATE_LIMIT_PER_MINUTE"] = int(os.getenv("RATE_LIMIT_PER_MINUTE", "30"))
+    
+    if not config.get("MAX_RETRIES"):
+        config["MAX_RETRIES"] = int(os.getenv("MAX_RETRIES", "3"))
+    
     # Validate configuration if validation is available
     if VALIDATION_AVAILABLE:
         try:

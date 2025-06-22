@@ -114,7 +114,7 @@ services:
                   await asyncio.sleep(30);
       
       asyncio.run(continuous_health_check())
-    "]
+      "]
     volumes:
       - ./output:/app/output:ro
     networks:

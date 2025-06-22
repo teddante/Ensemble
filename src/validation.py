@@ -56,7 +56,25 @@ class EnsembleConfig(BaseModel):
     def validate_api_key(cls, v):
         if not v or v.strip() == "" or "replace_me" in v.lower():
             raise ValueError("Valid OpenRouter API key is required")
-        return v.strip()
+        
+        # Enhanced API key validation
+        api_key = v.strip()
+        
+        # Check for common placeholder values
+        invalid_values = ['your_api_key_here', 'replace_me', 'your_actual_api_key_here', 'test', 'dummy']
+        if any(invalid in api_key.lower() for invalid in invalid_values):
+            raise ValueError("API key appears to be a placeholder value")
+        
+        # Basic format validation for OpenRouter API keys
+        # OpenRouter API keys typically start with 'sk-or-' followed by alphanumeric characters
+        if not re.match(r'^sk-or-[a-zA-Z0-9_-]+$', api_key) and not re.match(r'^sk-[a-zA-Z0-9_-]+$', api_key):
+            logger.warning("API key format may not be valid for OpenRouter - expected format: 'sk-or-...' or 'sk-...'")
+        
+        # Check minimum length (API keys should be reasonably long)
+        if len(api_key) < 20:
+            raise ValueError("API key appears to be too short to be valid")
+        
+        return api_key
     
     @validator('models')
     def validate_models(cls, v):

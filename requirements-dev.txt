@@ -1,20 +1,36 @@
 # Development dependencies
-pytest==7.4.0
+pytest==7.4.4
 pytest-cov==4.1.0
-pytest-asyncio==0.21.1
-pytest-xdist==3.3.1
-black==23.7.0
-flake8==6.0.0
-mypy==1.5.1
-bandit==1.7.5
-safety==2.3.4
-pre-commit==3.3.3
+pytest-asyncio==0.21.2
+pytest-xdist==3.6.0
+black==24.8.0
+flake8==7.1.1
+mypy==1.13.0
+bandit==1.8.5
+safety==3.5.2
+pre-commit==4.0.1
+
+# Code quality and formatting
+isort==5.13.2
+flake8-docstrings==1.7.0
+flake8-bugbear==24.10.31
+types-requests==2.32.0.20241016
+types-setuptools==75.6.0.20241126
+
+# Security and vulnerability scanning
+detect-secrets==1.5.0
+commitizen==3.29.1
 
 # Optional performance testing
 memory-profiler==0.61.0
-locust==2.16.1
+locust==2.32.4
 
 # Documentation
 pydoc-markdown==4.8.2
-mkdocs==1.5.2
-mkdocs-material==9.2.3
+mkdocs==1.6.1
+mkdocs-material==9.5.44
+PyYAML==6.0.2
+
+# API documentation (future-ready)
+fastapi==0.115.6
+uvicorn==0.32.1

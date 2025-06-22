@@ -1,9 +1,9 @@
-import logging
 from openai import OpenAI
 import os
 import datetime
 import re
 import time
+import logging
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 import asyncio
@@ -11,16 +11,17 @@ from config import load_config
 from validation import sanitize_prompt, PromptValidationError
 from rate_limiter import get_rate_limiter, RateLimitConfig, configure_rate_limiter
 from monitoring import get_performance_monitor, RequestMetrics, EnsembleMetrics
-
-# Setup enhanced logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+from logging_config import setup_logging, get_logger, set_correlation_id, log_performance
+from error_handling import (
+    handle_error, ErrorContext, AuthenticationError, NetworkError, 
+    APIError, ProcessingError, error_handler
 )
-logger = logging.getLogger(__name__)
 
-# Configuration constants
+# Setup enhanced logging with environment-based configuration
+setup_logging()
+logger = get_logger(__name__)
+
+# Configuration constants (will be overridden by config)
 DEFAULT_TIMEOUT = 60  # seconds
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_RETRY_DELAY = 2  # seconds
@@ -48,6 +49,7 @@ def get_text_preview(text: str, max_length: int = 150) -> str:
 
 # Initializes the OpenRouter client using configuration
 # Returns an instance of the OpenAI client
+@error_handler("client_initialization", "ensemble")
 def init_client(config: Dict[str, Any]) -> OpenAI:
     """
     Initialize OpenRouter client with configuration.
@@ -59,27 +61,35 @@ def init_client(config: Dict[str, Any]) -> OpenAI:
         OpenAI: Configured OpenAI client instance
         
     Raises:
-        ValueError: If API key is missing or invalid
-        Exception: If client initialization fails
+        AuthenticationError: If API key is missing or invalid
+        NetworkError: If client initialization fails due to network issues
     """
-    logger.info("Initializing OpenRouter client")
-    
-    api_key = config.get("OPENROUTER_API_KEY")
-    if not api_key or api_key.strip() == "":
-        raise ValueError("OPENROUTER_API_KEY is required but not provided")
-    
-    try:
-        client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=api_key,
-            timeout=DEFAULT_TIMEOUT,
-        )
+    with log_performance("client_initialization"):
+        logger.info("Initializing OpenRouter client")
         
-        logger.info("OpenRouter client initialized successfully")
-        return client
-    except Exception as e:
-        logger.exception("Failed to initialize client: %s", str(e))
-        raise
+        api_key = config.get("OPENROUTER_API_KEY")
+        if not api_key or api_key.strip() == "":
+            raise AuthenticationError(
+                "OPENROUTER_API_KEY is required but not provided",
+                context=ErrorContext(operation="client_init", component="ensemble")
+            )
+        
+        try:
+            timeout = config.get("REQUEST_TIMEOUT", DEFAULT_TIMEOUT)
+            client = OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=api_key,
+                timeout=timeout,
+            )
+            logger.info(f"Client initialized with timeout: {timeout}s")
+            
+            logger.info("OpenRouter client initialized successfully")
+            return client
+        except Exception as e:
+            raise NetworkError(
+                f"Failed to initialize OpenRouter client: {str(e)}",
+                context=ErrorContext(operation="client_init", component="ensemble")
+            ) from e
 
 class CircuitBreaker:
     """Simple circuit breaker implementation."""
@@ -549,8 +559,14 @@ async def main():
     """
     Main execution function for Ensemble AI processing.
     """
+    # Set up correlation ID for this request
+    correlation_id = set_correlation_id()
     start_time = time.time()
-    logger.info("=== Starting Ensemble AI processing ===")
+    
+    logger.info("=== Starting Ensemble AI processing ===", extra={
+        'correlation_id': correlation_id,
+        'operation': 'ensemble_main'
+    })
     
     # Initialize performance monitoring
     monitor = get_performance_monitor()
@@ -563,14 +579,14 @@ async def main():
         logger.info(f"Configuration loaded with {len(config)} parameters")
         logger.info(f"Using models: {config.get('models', config.get('MODELS', []))}")
         
-        # Configure rate limiting
+        # Configure rate limiting with values from config
         rate_limit_config = RateLimitConfig(
-            requests_per_minute=30,  # Conservative limit
+            requests_per_minute=config.get("RATE_LIMIT_PER_MINUTE", 30),
             requests_per_second=2,
             burst_limit=5
         )
         configure_rate_limiter(rate_limit_config)
-        logger.info("Rate limiting configured")
+        logger.info(f"Rate limiting configured: {rate_limit_config.requests_per_minute} req/min")
         
         # Initialize client
         client = init_client(config)
