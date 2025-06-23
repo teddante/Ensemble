@@ -40,7 +40,7 @@ class TestRateLimitConfig(unittest.TestCase):
         self.assertEqual(config.max_backoff, 30.0)
 
 
-class TestRateLimiter(unittest.TestCase):
+class TestRateLimiter(unittest.IsolatedAsyncioTestCase):
     """Test the RateLimiter class."""
     
     def setUp(self):
@@ -70,15 +70,16 @@ class TestRateLimiter(unittest.TestCase):
         """Test rate limiting for multiple requests to same model."""
         model = "test-model"
         
-        # Make several requests quickly
-        for _ in range(3):  # Within burst limit
-            await self.rate_limiter.acquire(model)
+        # Make requests quickly to trigger per-second rate limiting
+        # Config has requests_per_second=2
+        await self.rate_limiter.acquire(model)
+        await self.rate_limiter.acquire(model)
         
-        # This should trigger rate limiting
+        # This should trigger rate limiting (3rd request within 1 second)
         start_time = time.time()
         await self.rate_limiter.acquire(model)
         elapsed = time.time() - start_time
-        # Should have been delayed
+        # Should have been delayed by per-second rate limiting
         self.assertGreater(elapsed, 0.05)
     
     def test_record_success(self):
@@ -187,7 +188,7 @@ class TestGlobalRateLimiter(unittest.TestCase):
         self.assertEqual(limiter.config.requests_per_minute, 30)
 
 
-class TestRateLimiterIntegration(unittest.TestCase):
+class TestRateLimiterIntegration(unittest.IsolatedAsyncioTestCase):
     """Integration tests for rate limiter."""
     
     def setUp(self):

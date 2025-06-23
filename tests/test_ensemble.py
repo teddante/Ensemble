@@ -49,8 +49,8 @@ class TestEnsembleFunctions(unittest.TestCase):
         models = ["model1", "model2"]
         responses = ["First response", "Second response"]
         combined = ensemble.combine_responses(prompt, models, responses)
-        self.assertIn("Model 1 Response (model1):", combined)
-        self.assertIn("Model 2 Response (model2):", combined)
+        self.assertIn("Response 1 (from model1):", combined)
+        self.assertIn("Response 2 (from model2):", combined)
         self.assertIn("Test prompt", combined)
 
     def test_refine_response(self):

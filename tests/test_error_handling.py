@@ -192,7 +192,7 @@ class TestErrorTracker(unittest.TestCase):
     def test_alert_conditions(self):
         """Test alert condition checking."""
         # Create conditions for alerts
-        for _ in range(12):  # High error rate
+        for _ in range(55):  # High error rate (55 errors in 5 minutes = 11 errors/minute > 10)
             self.tracker.record_error(ValidationError("Error"))
         
         alerts = self.tracker.check_alert_conditions()

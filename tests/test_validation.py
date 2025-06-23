@@ -197,13 +197,13 @@ class TestEnsembleConfig(unittest.TestCase):
     def test_valid_config(self):
         """Test validation of valid configuration."""
         config_data = {
-            "openrouter_api_key": "sk-test-key-123",
+            "openrouter_api_key": "sk-test-key-123456789abcdef456789abcdef-123456789abcdef",
             "models": ["openai/gpt-4", "anthropic/claude-3"],
             "refinement_model_name": "openai/gpt-4",
             "prompt": "Test prompt"
         }
         config = EnsembleConfig(**config_data)
-        self.assertEqual(config.openrouter_api_key, "sk-test-key-123")
+        self.assertEqual(config.openrouter_api_key, "sk-test-key-123456789abcdef456789abcdef-123456789abcdef")
         self.assertEqual(len(config.models), 2)
     
     def test_invalid_api_key(self):
@@ -222,7 +222,7 @@ class TestEnsembleConfig(unittest.TestCase):
         """Test rejection of empty models list."""
         with self.assertRaises(ValidationError):
             EnsembleConfig(
-                openrouter_api_key="sk-test-key",
+                openrouter_api_key="sk-test-key-123456789abcdef456789abcdef",
                 models=[],
                 refinement_model_name="openai/gpt-4"
             )
@@ -231,7 +231,7 @@ class TestEnsembleConfig(unittest.TestCase):
         """Test rejection of empty refinement model."""
         with self.assertRaises(ValidationError):
             EnsembleConfig(
-                openrouter_api_key="sk-test-key",
+                openrouter_api_key="sk-test-key-123456789abcdef456789abcdef",
                 models=["openai/gpt-4"],
                 refinement_model_name=""
             )
@@ -239,7 +239,7 @@ class TestEnsembleConfig(unittest.TestCase):
     def test_config_with_optional_prompt(self):
         """Test configuration with optional prompt."""
         config = EnsembleConfig(
-            openrouter_api_key="sk-test-key",
+            openrouter_api_key="sk-test-key-123456789abcdef456789abcdef",
             models=["openai/gpt-4"],
             refinement_model_name="openai/gpt-4"
         )
@@ -249,7 +249,7 @@ class TestEnsembleConfig(unittest.TestCase):
         """Test warning for incorrectly formatted model names."""
         with patch('validation.logger') as mock_logger:
             config = EnsembleConfig(
-                openrouter_api_key="sk-test-key",
+                openrouter_api_key="sk-test-key-123456789abcdef456789abcdef",
                 models=["invalid-model-format"],
                 refinement_model_name="also-invalid"
             )
@@ -264,25 +264,25 @@ class TestFallbackValidation(unittest.TestCase):
     def test_basic_config_creation(self):
         """Test that EnsembleConfig can be created even without Pydantic."""
         config_data = {
-            "openrouter_api_key": "sk-test-key-123",
+            "openrouter_api_key": "sk-test-key-123456789abcdef456789abcdef-123",
             "models": ["openai/gpt-4", "anthropic/claude-3"],
             "refinement_model_name": "openai/gpt-4",
             "prompt": "Test prompt"
         }
         config = EnsembleConfig(**config_data)
-        self.assertEqual(config.openrouter_api_key, "sk-test-key-123")
+        self.assertEqual(config.openrouter_api_key, "sk-test-key-123456789abcdef456789abcdef-123")
         self.assertEqual(config.models, ["openai/gpt-4", "anthropic/claude-3"])
     
     def test_config_dict_method(self):
         """Test that config.dict() works."""
         config = EnsembleConfig(
-            openrouter_api_key="test-key",
-            models=["model1"],
-            refinement_model_name="model1"
+            openrouter_api_key="sk-test-key-123456789abcdef",
+            models=["provider/model1"],
+            refinement_model_name="provider/model1"
         )
         config_dict = config.dict()
         self.assertIn("openrouter_api_key", config_dict)
-        self.assertEqual(config_dict["openrouter_api_key"], "test-key")
+        self.assertEqual(config_dict["openrouter_api_key"], "sk-test-key-123456789abcdef")
 
 
 if __name__ == '__main__':
