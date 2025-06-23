@@ -28,7 +28,7 @@ class RateLimiter:
     Rate limiter for API requests with per-model limits and exponential backoff.
     """
 
-    def __init__(self, config: RateLimitConfig = None):
+    def __init__(self, config: Optional[RateLimitConfig] = None):
         self.config = config or RateLimitConfig()
         self._request_times: Dict[str, list] = defaultdict(list)
         self._locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)

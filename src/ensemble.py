@@ -10,7 +10,7 @@ import asyncio
 from config import load_config
 from validation import sanitize_prompt, PromptValidationError
 from rate_limiter import get_rate_limiter, RateLimitConfig, configure_rate_limiter
-from monitoring import get_performance_monitor, RequestMetrics, EnsembleMetrics
+from monitoring import get_performance_monitor, RequestMetrics
 from logging_config import (
     setup_logging,
     get_logger,
@@ -18,12 +18,9 @@ from logging_config import (
     log_performance,
 )
 from error_handling import (
-    handle_error,
     ErrorContext,
     AuthenticationError,
     NetworkError,
-    APIError,
-    ProcessingError,
     error_handler,
 )
 
@@ -220,13 +217,15 @@ async def fetch_single_response(
             )
 
             # Create completion with timeout
-            completion = await asyncio.wait_for(
-                asyncio.to_thread(
-                    client.chat.completions.create,
+            def _create_completion():
+                return client.chat.completions.create(
                     model=model,
                     messages=[{"role": "user", "content": prompt}],
                     timeout=timeout,
-                ),
+                )
+            
+            completion = await asyncio.wait_for(
+                asyncio.to_thread(_create_completion),
                 timeout=timeout + 5,  # Add buffer for asyncio timeout
             )
 
@@ -351,7 +350,7 @@ async def fetch_llm_responses(
     processed_responses = []
     successful_responses = 0
 
-    for i, (model, response) in enumerate(zip(models, responses)):
+    for model, response in zip(models, responses):
         if isinstance(response, Exception):
             error_msg = f"Error: Exception in {model} - {str(response)}"
             logger.error(error_msg)
@@ -359,10 +358,14 @@ async def fetch_llm_responses(
         elif isinstance(response, str) and response.startswith("Error:"):
             logger.warning(f"Model {model} returned an error: {response}")
             processed_responses.append(response)
-        else:
+        elif isinstance(response, str):
             logger.info(f"Model {model} returned {len(response)} characters")
             processed_responses.append(response)
             successful_responses += 1
+        else:
+            error_msg = f"Error: Unexpected response type from {model}"
+            logger.error(error_msg)
+            processed_responses.append(error_msg)
 
     # Check if we have enough successful responses
     if successful_responses == 0:
@@ -481,7 +484,8 @@ def ensure_output_directory() -> Path:
     Returns:
         Path: Path to the output directory
     """
-    output_dir = Path(os.path.dirname(__file__), "..", "output")
+    output_dir = Path(__file__).parent.parent / "output"
+    output_dir = output_dir.resolve()  # Resolve to absolute path
     output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
 
@@ -583,8 +587,11 @@ def get_prompt(config: Dict[str, Any]) -> str:
 
     # Try configuration if file didn't work
     if not prompt and config.get("PROMPT"):
-        prompt = config["PROMPT"].strip()
-        logger.info(f"Using prompt from configuration ({len(prompt)} characters)")
+        prompt_from_config = config.get("PROMPT")
+        if prompt_from_config:
+            prompt = prompt_from_config.strip()
+            if prompt:  # Ensure prompt is not empty after strip
+                logger.info(f"Using prompt from configuration ({len(prompt)} characters)")
 
     # Ask user if no prompt found
     if not prompt:

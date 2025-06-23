@@ -4,6 +4,7 @@ Input validation and sanitization utilities for Ensemble.
 
 import re
 import logging
+import tempfile
 from typing import Optional, List
 
 # Import dependencies with fallbacks
@@ -243,8 +244,9 @@ def validate_file_path(file_path: str) -> str:
     sanitized = file_path.replace("..", "").replace("//", "/")
 
     # Check for absolute paths outside allowed directories
-    if file_path.startswith("/") and not file_path.startswith("/tmp/"):
-        raise ValueError("Absolute paths not allowed except in /tmp/")
+    temp_dir = tempfile.gettempdir()
+    if file_path.startswith("/") and not file_path.startswith(temp_dir):
+        raise ValueError(f"Absolute paths not allowed except in {temp_dir}")
 
     return sanitized
 

@@ -370,22 +370,28 @@ class ErrorTracker:
             error for error in self.error_history if error["timestamp"] >= window_start
         ]
 
+        error_types: defaultdict[str, int] = defaultdict(int)
+        categories: defaultdict[str, int] = defaultdict(int)
+        severities: defaultdict[str, int] = defaultdict(int)
+        top_operations: defaultdict[str, int] = defaultdict(int)
+        top_components: defaultdict[str, int] = defaultdict(int)
+        
         stats = {
             "total_errors": len(recent_errors),
             "error_rate_per_minute": len(recent_errors) / max(time_window_minutes, 1),
-            "error_types": defaultdict(int),
-            "categories": defaultdict(int),
-            "severities": defaultdict(int),
-            "top_operations": defaultdict(int),
-            "top_components": defaultdict(int),
+            "error_types": error_types,
+            "categories": categories,
+            "severities": severities,
+            "top_operations": top_operations,
+            "top_components": top_components,
         }
 
         for error in recent_errors:
-            stats["error_types"][error["type"]] += 1
-            stats["categories"][error["category"]] += 1
-            stats["severities"][error["severity"]] += 1
-            stats["top_operations"][error["context"]["operation"]] += 1
-            stats["top_components"][error["context"]["component"]] += 1
+            error_types[error["type"]] += 1
+            categories[error["category"]] += 1
+            severities[error["severity"]] += 1
+            top_operations[error["context"]["operation"]] += 1
+            top_components[error["context"]["component"]] += 1
 
         return dict(stats)
 

@@ -156,6 +156,12 @@ class EnsembleLogger:
             "LOG_FORMAT", "json" if env == "production" else "human"
         )
         log_file = log_file or os.getenv("LOG_FILE")
+        
+        # Ensure level and log_format are not None
+        if level is None:
+            raise ValueError("Log level cannot be None")
+        if log_format is None:
+            raise ValueError("Log format cannot be None")
 
         # Configure root logger
         root_logger = logging.getLogger()
@@ -169,6 +175,7 @@ class EnsembleLogger:
         correlation_filter = CorrelationIDFilter()
 
         # Set up formatter
+        formatter: logging.Formatter
         if log_format.lower() == "json":
             formatter = JSONFormatter()
         else:
@@ -187,6 +194,7 @@ class EnsembleLogger:
             log_path = Path(log_file)
             log_path.parent.mkdir(parents=True, exist_ok=True)
 
+            file_handler: logging.Handler
             if enable_rotation:
                 file_handler = logging.handlers.RotatingFileHandler(
                     log_file,
@@ -221,14 +229,14 @@ class EnsembleLogger:
         logging.getLogger("httpx").setLevel(logging.WARNING)
         logging.getLogger("asyncio").setLevel(logging.WARNING)
 
-    def set_correlation_id(self, correlation_id: str = None) -> str:
+    def set_correlation_id(self, correlation_id: Optional[str] = None) -> str:
         """Set correlation ID for request tracking."""
         if correlation_id is None:
             correlation_id = str(uuid.uuid4())
         _request_context.correlation_id = correlation_id
         return correlation_id
 
-    def set_request_id(self, request_id: str = None) -> str:
+    def set_request_id(self, request_id: Optional[str] = None) -> str:
         """Set request ID for detailed request tracking."""
         if request_id is None:
             request_id = str(uuid.uuid4())
@@ -240,7 +248,7 @@ class EnsembleLogger:
         _request_context.correlation_id = None
         _request_context.request_id = None
 
-    def get_context(self) -> Dict[str, str]:
+    def get_context(self) -> Dict[str, Optional[str]]:
         """Get current request context."""
         return {
             "correlation_id": getattr(_request_context, "correlation_id", None),
@@ -253,9 +261,9 @@ _ensemble_logger = EnsembleLogger()
 
 
 def setup_logging(
-    level: str = None,
-    log_format: str = None,
-    log_file: str = None,
+    level: Optional[str] = None,
+    log_format: Optional[str] = None,
+    log_file: Optional[str] = None,
     enable_rotation: bool = True,
     max_file_size: int = 10 * 1024 * 1024,
     backup_count: int = 5,
@@ -276,7 +284,7 @@ def setup_logging(
     )
 
 
-def get_logger(name: str = None) -> logging.Logger:
+def get_logger(name: Optional[str] = None) -> logging.Logger:
     """
     Get a logger instance with proper configuration.
 
@@ -292,7 +300,7 @@ def get_logger(name: str = None) -> logging.Logger:
     return logging.getLogger(name)
 
 
-def set_correlation_id(correlation_id: str = None) -> str:
+def set_correlation_id(correlation_id: Optional[str] = None) -> str:
     """
     Set correlation ID for request tracking.
 
@@ -305,7 +313,7 @@ def set_correlation_id(correlation_id: str = None) -> str:
     return _ensemble_logger.set_correlation_id(correlation_id)
 
 
-def set_request_id(request_id: str = None) -> str:
+def set_request_id(request_id: Optional[str] = None) -> str:
     """
     Set request ID for detailed request tracking.
 
@@ -323,7 +331,7 @@ def clear_context() -> None:
     _ensemble_logger.clear_context()
 
 
-def get_context() -> Dict[str, str]:
+def get_context() -> Dict[str, Optional[str]]:
     """Get current request context."""
     return _ensemble_logger.get_context()
 
@@ -331,7 +339,7 @@ def get_context() -> Dict[str, str]:
 class LoggingContext:
     """Context manager for request logging."""
 
-    def __init__(self, correlation_id: str = None, request_id: str = None):
+    def __init__(self, correlation_id: Optional[str] = None, request_id: Optional[str] = None):
         self.correlation_id = correlation_id
         self.request_id = request_id
         self.old_context = None

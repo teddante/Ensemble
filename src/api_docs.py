@@ -6,7 +6,7 @@ future REST API endpoints. Currently, Ensemble AI is a CLI application,
 but this prepares for potential API server functionality.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable, cast
 from dataclasses import dataclass, asdict
 from enum import Enum
 import json
@@ -82,7 +82,7 @@ class OpenAPIGenerator:
     def __init__(self, version: str = "1.0.0", title: str = "Ensemble AI API"):
         self.version = version
         self.title = title
-        self.base_spec = {
+        self.base_spec: Dict[str, Any] = {
             "openapi": "3.0.3",
             "info": {
                 "title": title,
@@ -444,8 +444,8 @@ def save_openapi_spec(output_file: str = "api_spec.json") -> None:
 def api_endpoint(
     path: str,
     method: HTTPMethod = HTTPMethod.GET,
-    tags: List[str] = None,
-    summary: str = None,
+    tags: Optional[List[str]] = None,
+    summary: Optional[str] = None,
 ):
     """
     Decorator for future API endpoint functions.
@@ -499,7 +499,13 @@ if __name__ == "__main__":
     @validate_request(EnsembleRequest)
     def process_ensemble_endpoint(request: EnsembleRequest) -> EnsembleResponse:
         """Future endpoint for ensemble processing."""
-        pass
+        # Placeholder implementation
+        return EnsembleResponse(
+            refined_response="Example response",
+            model_responses=[],
+            processing_time=0.0,
+            models_used=[]
+        )
 
     print(f"\nExample endpoint configuration:")
     print(f"Path: {process_ensemble_endpoint._api_path}")

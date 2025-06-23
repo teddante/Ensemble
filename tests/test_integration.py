@@ -9,6 +9,7 @@ import unittest
 import asyncio
 import tempfile
 import shutil
+import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from pathlib import Path
 import ensemble
@@ -74,6 +75,7 @@ class TestEnsembleIntegration(unittest.TestCase):
         os.chdir(self.original_cwd)
         shutil.rmtree(self.test_dir)
     
+    @pytest.mark.asyncio
     async def test_successful_ensemble_workflow(self):
         """Test complete successful ensemble workflow."""
         # Mock responses for different models
@@ -103,6 +105,7 @@ class TestEnsembleIntegration(unittest.TestCase):
             printed_output = str(mock_print.call_args_list[-2][0][0])  # Get the main response
             self.assertIn("Machine learning", printed_output)
     
+    @pytest.mark.asyncio
     async def test_partial_model_failure_workflow(self):
         """Test ensemble workflow with some model failures."""
         # Some models succeed, some fail
@@ -136,6 +139,7 @@ class TestEnsembleIntegration(unittest.TestCase):
             # Verify that output was still generated
             mock_print.assert_called()
     
+    @pytest.mark.asyncio
     async def test_all_models_fail_workflow(self):
         """Test ensemble workflow when all models fail."""
         mock_client = MockOpenAIClient(should_fail=True)
