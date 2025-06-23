@@ -1,25 +1,34 @@
-import os
+"""
+Configuration management for Ensemble AI.
+
+This module handles hierarchical configuration loading from environment files,
+environment variables, and defaults. It provides validation and fallback
+mechanisms for graceful degradation.
+"""
+
 import logging
+import os
 from pathlib import Path
 
 # Import dependencies with fallbacks
 try:
-    from dotenv import load_dotenv, find_dotenv, dotenv_values
+    from dotenv import dotenv_values, find_dotenv, load_dotenv
 
     DOTENV_AVAILABLE = True
 except ImportError:
     DOTENV_AVAILABLE = False
-    logging.warning(
-        "python-dotenv not available - environment file loading will be limited"
-    )
+    logging.warning("python-dotenv not available - environment file loading will be limited")
 
     def load_dotenv(*args, **kwargs):  # type: ignore
+        """Fallback function when python-dotenv is not available."""
         pass
 
     def find_dotenv(*args, **kwargs):  # type: ignore
+        """Fallback function to find .env files when python-dotenv is not available."""
         return None
 
     def dotenv_values(path):  # type: ignore
+        """Fallback function to read .env values when python-dotenv is not available."""
         try:
             with open(path, "r") as f:
                 values = {}
@@ -34,28 +43,35 @@ except ImportError:
 
 
 try:
-    from validation import EnsembleConfig, ModelConfigValidationError
     from pydantic import ValidationError
+
+    from validation import EnsembleConfig, ModelConfigValidationError
 
     VALIDATION_AVAILABLE = True
 except ImportError:
     VALIDATION_AVAILABLE = False
-    logging.warning(
-        "validation module not available - configuration validation will be limited"
-    )
+    logging.warning("validation module not available - configuration validation will be limited")
 
     class EnsembleConfig:  # type: ignore
+        """Fallback configuration class when Pydantic is not available."""
+
         def __init__(self, **kwargs):
+            """Initialize configuration with provided keyword arguments."""
             for key, value in kwargs.items():
                 setattr(self, key, value)
 
         def dict(self):
+            """Return configuration as dictionary."""
             return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
 
     class ModelConfigValidationError(Exception):  # type: ignore
+        """Exception raised when model configuration validation fails."""
+
         pass
 
     class ValidationError(Exception):  # type: ignore
+        """Exception raised when general validation fails."""
+
         pass
 
 
@@ -151,9 +167,7 @@ def load_config():
             logging.error(f"Configuration validation failed: {e}")
             # For backwards compatibility, warn but don't fail if API key is missing
             if "openrouter_api_key" in str(e).lower():
-                logging.warning(
-                    "OPENROUTER_API_KEY validation failed. API calls will fail."
-                )
+                logging.warning("OPENROUTER_API_KEY validation failed. API calls will fail.")
             else:
                 raise
         except Exception as e:
@@ -165,8 +179,6 @@ def load_config():
             logging.warning("OPENROUTER_API_KEY not set. API calls will fail.")
         if not config.get("MODELS"):
             logging.warning("No models configured.")
-        logging.info(
-            "Basic configuration validation completed (advanced validation unavailable)"
-        )
+        logging.info("Basic configuration validation completed (advanced validation unavailable)")
 
     return config

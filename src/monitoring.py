@@ -2,14 +2,14 @@
 Performance monitoring and metrics collection for Ensemble.
 """
 
-import time
+import datetime
+import json
 import logging
 import threading
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
+import time
 from collections import defaultdict, deque
-import json
-import datetime
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -89,9 +89,7 @@ class PerformanceMonitor:
     def start_ensemble_operation(self, prompt_length: int) -> EnsembleMetrics:
         """Start tracking a new ensemble operation."""
         metrics = EnsembleMetrics(start_time=time.time(), prompt_length=prompt_length)
-        self.logger.debug(
-            f"Started tracking ensemble operation with prompt length {prompt_length}"
-        )
+        self.logger.debug(f"Started tracking ensemble operation with prompt length {prompt_length}")
         return metrics
 
     def start_request(self, model: str) -> RequestMetrics:
@@ -167,21 +165,15 @@ class PerformanceMonitor:
                     stats["average_latency"] = (
                         stats["total_duration"] / stats["successful_requests"]
                     )
-                    stats["p95_latency"] = self._calculate_percentile(
-                        stats["recent_latencies"], 95
-                    )
-                    stats["p99_latency"] = self._calculate_percentile(
-                        stats["recent_latencies"], 99
-                    )
+                    stats["p95_latency"] = self._calculate_percentile(stats["recent_latencies"], 95)
+                    stats["p99_latency"] = self._calculate_percentile(stats["recent_latencies"], 99)
                 else:
                     stats["average_latency"] = 0.0
                     stats["p95_latency"] = 0.0
                     stats["p99_latency"] = 0.0
 
                 if stats["total_requests"] > 0:
-                    stats["success_rate"] = (
-                        stats["successful_requests"] / stats["total_requests"]
-                    )
+                    stats["success_rate"] = stats["successful_requests"] / stats["total_requests"]
                 else:
                     stats["success_rate"] = 0.0
 
@@ -189,7 +181,7 @@ class PerformanceMonitor:
             else:
                 # Return stats for all models
                 all_stats = {}
-                for model_name, model_stats in self._model_stats.items():
+                for model_name, _ in self._model_stats.items():
                     all_stats.update(self.get_model_stats(model_name))
                 return all_stats
 
@@ -212,9 +204,7 @@ class PerformanceMonitor:
             stats = {
                 "total_operations": total_ops,
                 "successful_operations": successful_ops,
-                "operation_success_rate": (
-                    successful_ops / total_ops if total_ops > 0 else 0.0
-                ),
+                "operation_success_rate": (successful_ops / total_ops if total_ops > 0 else 0.0),
                 "average_model_success_rate": (
                     sum(success_rates) / len(success_rates) if success_rates else 0.0
                 ),
@@ -236,9 +226,7 @@ class PerformanceMonitor:
     def get_health_status(self) -> Dict[str, Any]:
         """Get overall health status of the system."""
         model_stats = self.get_model_stats()
-        ensemble_stats = self.get_ensemble_stats(
-            recent_count=100
-        )  # Last 100 operations
+        ensemble_stats = self.get_ensemble_stats(recent_count=100)  # Last 100 operations
 
         # Determine health based on recent performance
         health_status = "healthy"
@@ -248,20 +236,14 @@ class PerformanceMonitor:
         for model, stats in model_stats.items():
             if stats.get("success_rate", 0) < 0.8:  # Less than 80% success rate
                 health_status = "degraded"
-                issues.append(
-                    f"Model {model} has low success rate: {stats['success_rate']:.2%}"
-                )
+                issues.append(f"Model {model} has low success rate: {stats['success_rate']:.2%}")
 
             if stats.get("average_latency", 0) > 30:  # More than 30 seconds average
                 health_status = "degraded"
-                issues.append(
-                    f"Model {model} has high latency: {stats['average_latency']:.2f}s"
-                )
+                issues.append(f"Model {model} has high latency: {stats['average_latency']:.2f}s")
 
         # Check ensemble health
-        if (
-            ensemble_stats.get("operation_success_rate", 0) < 0.9
-        ):  # Less than 90% success
+        if ensemble_stats.get("operation_success_rate", 0) < 0.9:  # Less than 90% success
             health_status = "degraded"
             issues.append(
                 f"Low ensemble success rate: {ensemble_stats['operation_success_rate']:.2%}"

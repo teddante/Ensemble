@@ -2,10 +2,10 @@
 Input validation and sanitization utilities for Ensemble.
 """
 
-import re
 import logging
+import re
 import tempfile
-from typing import Optional, List
+from typing import List, Optional
 
 # Import dependencies with fallbacks
 try:
@@ -26,17 +26,24 @@ except ImportError:
 
     # Create minimal fallback classes
     class BaseModel:  # type: ignore
+        """Fallback BaseModel class when Pydantic is not available."""
+
         def __init__(self, **kwargs):
+            """Initialize model with provided keyword arguments."""
             for key, value in kwargs.items():
                 setattr(self, key, value)
 
         def dict(self):
+            """Return model data as dictionary."""
             return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
 
     def Field(*args, **kwargs):  # type: ignore
+        """Fallback Field function when Pydantic is not available."""
         return None
 
     def field_validator(*args, **kwargs):  # type: ignore
+        """Fallback field validator when Pydantic is not available."""
+
         def decorator(func):
             return func
 
@@ -62,17 +69,14 @@ class EnsembleConfig(BaseModel):
     """Pydantic model for validating Ensemble configuration."""
 
     openrouter_api_key: str = Field(..., min_length=1, description="OpenRouter API key")
-    models: List[str] = Field(
-        ..., min_length=1, description="List of model identifiers"
-    )
-    refinement_model_name: str = Field(
-        ..., min_length=1, description="Refinement model identifier"
-    )
+    models: List[str] = Field(..., min_length=1, description="List of model identifiers")
+    refinement_model_name: str = Field(..., min_length=1, description="Refinement model identifier")
     prompt: Optional[str] = Field(None, description="Optional prompt")
 
     @field_validator("openrouter_api_key")
     @classmethod
     def validate_api_key(cls, v):
+        """Validate OpenRouter API key format and content."""
         if not v or v.strip() == "" or "replace_me" in v.lower():
             raise ValueError("Valid OpenRouter API key is required")
 
@@ -107,6 +111,7 @@ class EnsembleConfig(BaseModel):
     @field_validator("models")
     @classmethod
     def validate_models(cls, v):
+        """Validate model list and format."""
         if not v:
             raise ValueError("At least one model must be specified")
 
@@ -131,6 +136,7 @@ class EnsembleConfig(BaseModel):
     @field_validator("refinement_model_name")
     @classmethod
     def validate_refinement_model(cls, v):
+        """Validate refinement model name format."""
         if not v or not v.strip():
             raise ValueError("Refinement model name is required")
 
@@ -176,7 +182,7 @@ def sanitize_prompt(prompt: str, max_length: int = 10000) -> str:
 
     # Check for script tags and comments - reject if they constitute most of the content
     script_and_comment_patterns = [r"<script[^>]*>", r"<!--"]
-    
+
     for pattern in script_and_comment_patterns:
         matches = re.findall(pattern, prompt, re.IGNORECASE)
         if matches:
@@ -212,9 +218,7 @@ def sanitize_prompt(prompt: str, max_length: int = 10000) -> str:
     sanitized = re.sub(r"\s+", " ", sanitized).strip()
 
     if len(sanitized) > max_length:
-        logger.warning(
-            f"Prompt truncated from {len(sanitized)} to {max_length} characters"
-        )
+        logger.warning(f"Prompt truncated from {len(sanitized)} to {max_length} characters")
         sanitized = sanitized[:max_length].rsplit(" ", 1)[0] + "..."
 
     if len(sanitized) < 3:
@@ -286,9 +290,7 @@ def validate_models_list(models: List[str]) -> List[str]:
             raise ModelConfigValidationError(f"Model name too long: {model}")
 
         if not re.match(r"^[a-zA-Z0-9\-_/\.]+$", model):
-            raise ModelConfigValidationError(
-                f"Invalid characters in model name: {model}"
-            )
+            raise ModelConfigValidationError(f"Invalid characters in model name: {model}")
 
         validated_models.append(model)
 

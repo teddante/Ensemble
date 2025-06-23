@@ -1,28 +1,28 @@
-from openai import OpenAI
-import os
+"""
+Main application module for Ensemble AI.
+
+This module provides the core functionality for querying multiple LLMs
+simultaneously, handling parallel requests, rate limiting, error handling,
+and response synthesis. It serves as the entry point for the CLI application.
+"""
+
+import asyncio
 import datetime
+import logging
+import os
 import re
 import time
-import logging
 from pathlib import Path
-from typing import List, Optional, Dict, Any
-import asyncio
+from typing import Any, Dict, List, Optional
+
+from openai import OpenAI
+
 from config import load_config
-from validation import sanitize_prompt, PromptValidationError
-from rate_limiter import get_rate_limiter, RateLimitConfig, configure_rate_limiter
-from monitoring import get_performance_monitor, RequestMetrics
-from logging_config import (
-    setup_logging,
-    get_logger,
-    set_correlation_id,
-    log_performance,
-)
-from error_handling import (
-    ErrorContext,
-    AuthenticationError,
-    NetworkError,
-    error_handler,
-)
+from error_handling import AuthenticationError, ErrorContext, NetworkError, error_handler
+from logging_config import get_logger, log_performance, set_correlation_id, setup_logging
+from monitoring import RequestMetrics, get_performance_monitor
+from rate_limiter import RateLimitConfig, configure_rate_limiter, get_rate_limiter
+from validation import PromptValidationError, sanitize_prompt
 
 # Setup enhanced logging with environment-based configuration
 setup_logging()
@@ -109,6 +109,7 @@ class CircuitBreaker:
     """Simple circuit breaker implementation."""
 
     def __init__(self, failure_threshold: int = 5, recovery_timeout: float = 60.0):
+        """Initialize circuit breaker with failure threshold and recovery timeout."""
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.failure_count = 0
@@ -212,9 +213,7 @@ async def fetch_single_response(
     # Attempt request with retries
     for attempt in range(DEFAULT_MAX_RETRIES):
         try:
-            logger.debug(
-                f"Attempt {attempt + 1}/{DEFAULT_MAX_RETRIES} for model {model}"
-            )
+            logger.debug(f"Attempt {attempt + 1}/{DEFAULT_MAX_RETRIES} for model {model}")
 
             # Create completion with timeout
             def _create_completion():
@@ -223,7 +222,7 @@ async def fetch_single_response(
                     messages=[{"role": "user", "content": prompt}],
                     timeout=timeout,
                 )
-            
+
             completion = await asyncio.wait_for(
                 asyncio.to_thread(_create_completion),
                 timeout=timeout + 5,  # Add buffer for asyncio timeout
@@ -235,9 +234,7 @@ async def fetch_single_response(
             if not response_content:
                 raise ValueError("Empty response received from model")
 
-            logger.info(
-                f"Response received from {model} in {response_time:.2f} seconds"
-            )
+            logger.info(f"Response received from {model} in {response_time:.2f} seconds")
             log_with_preview(logger, f"Preview from {model}", response_content)
 
             # Record success
@@ -301,9 +298,7 @@ async def fetch_single_response(
     return "Error: Max retries exceeded"
 
 
-async def fetch_llm_responses(
-    client: OpenAI, prompt: str, models: List[str]
-) -> List[str]:
+async def fetch_llm_responses(client: OpenAI, prompt: str, models: List[str]) -> List[str]:
     """
     Fetch responses from multiple models in parallel with graceful degradation.
 
@@ -333,9 +328,7 @@ async def fetch_llm_responses(
     # Create tasks for parallel execution with metrics
     tasks = [
         asyncio.create_task(
-            fetch_single_response(
-                client, sanitized_prompt, model, DEFAULT_TIMEOUT, metrics
-            )
+            fetch_single_response(client, sanitized_prompt, model, DEFAULT_TIMEOUT, metrics)
         )
         for model, metrics in zip(models, request_metrics_list)
     ]
@@ -374,9 +367,7 @@ async def fetch_llm_responses(
     elif successful_responses < len(models) * 0.5:  # Less than 50% success
         logger.warning(f"Only {successful_responses}/{len(models)} models succeeded")
 
-    logger.info(
-        f"Successfully collected {successful_responses}/{len(models)} responses"
-    )
+    logger.info(f"Successfully collected {successful_responses}/{len(models)} responses")
     return processed_responses
 
 
@@ -399,7 +390,7 @@ def combine_responses(prompt: str, models: List[str], responses: List[str]) -> s
     valid_responses = []
     valid_models = []
 
-    for i, (model, response) in enumerate(zip(models, responses)):
+    for model, response in zip(models, responses):
         if not response.startswith("Error:"):
             valid_responses.append(response)
             valid_models.append(model)
@@ -410,9 +401,7 @@ def combine_responses(prompt: str, models: List[str], responses: List[str]) -> s
         logger.error("No valid responses to combine")
         raise ValueError("No valid responses available for refinement")
 
-    logger.info(
-        f"Combining {len(valid_responses)} valid responses from {len(valid_models)} models"
-    )
+    logger.info(f"Combining {len(valid_responses)} valid responses from {len(valid_models)} models")
 
     combined_prompt = (
         f"Here are responses from {len(valid_responses)} different LLMs to the prompt: '{prompt}'. "
@@ -435,9 +424,7 @@ def combine_responses(prompt: str, models: List[str], responses: List[str]) -> s
     return combined_prompt
 
 
-async def refine_response(
-    client: OpenAI, combined_prompt: str, refinement_model: str
-) -> str:
+async def refine_response(client: OpenAI, combined_prompt: str, refinement_model: str) -> str:
     """
     Refine the combined responses from multiple LLMs into a single coherent answer.
 
@@ -542,9 +529,7 @@ def write_output_to_file(refined_answer: str, prompt: str) -> Optional[Path]:
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(refined_answer)
 
-        logger.info(
-            f"Successfully wrote {len(refined_answer)} characters to file: {output_path}"
-        )
+        logger.info(f"Successfully wrote {len(refined_answer)} characters to file: {output_path}")
         return output_path
     except Exception as e:
         logger.exception(f"Error writing output to file: {str(e)}")
@@ -578,9 +563,7 @@ def get_prompt(config: Dict[str, Any]) -> str:
         try:
             with open(prompt_file_path, "r", encoding="utf-8") as f:
                 prompt = f.read().strip()
-            logger.info(
-                f"Prompt loaded from file: {prompt_file_path} ({len(prompt)} characters)"
-            )
+            logger.info(f"Prompt loaded from file: {prompt_file_path} ({len(prompt)} characters)")
         except Exception as e:
             logger.warning(f"Failed to read prompt file: {str(e)}")
             # Fall through to next method if file reading fails
@@ -650,9 +633,7 @@ async def main():
             burst_limit=5,
         )
         configure_rate_limiter(rate_limit_config)
-        logger.info(
-            f"Rate limiting configured: {rate_limit_config.requests_per_minute} req/min"
-        )
+        logger.info(f"Rate limiting configured: {rate_limit_config.requests_per_minute} req/min")
 
         # Initialize client
         client = init_client(config)
@@ -664,9 +645,7 @@ async def main():
         # Get and validate prompt
         prompt = get_prompt(config)
         logger.info(
-            f"Working with validated prompt: {prompt[:100]}..."
-            if len(prompt) > 100
-            else prompt
+            f"Working with validated prompt: {prompt[:100]}..." if len(prompt) > 100 else prompt
         )
 
         # Start ensemble metrics tracking
@@ -686,9 +665,7 @@ async def main():
             combined_prompt = combine_responses(prompt, models, llm_responses)
         except ValueError as e:
             logger.error(f"No valid responses to combine: {e}")
-            logger.info(
-                "Attempting to use best available response without refinement..."
-            )
+            logger.info("Attempting to use best available response without refinement...")
 
             # Find the first non-error response
             for response in llm_responses:
@@ -710,15 +687,11 @@ async def main():
             raise Exception("No usable responses available")
 
         # Refine the response
-        refinement_model = config.get(
-            "refinement_model_name", config.get("REFINEMENT_MODEL_NAME")
-        )
+        refinement_model = config.get("refinement_model_name", config.get("REFINEMENT_MODEL_NAME"))
         logger.info(f"Using {refinement_model} as refinement model")
 
         try:
-            refined_answer = await refine_response(
-                client, combined_prompt, refinement_model
-            )
+            refined_answer = await refine_response(client, combined_prompt, refinement_model)
         except Exception as e:
             logger.error(f"Refinement failed: {e}")
             logger.info("Attempting to use combined responses without refinement...")
@@ -747,9 +720,7 @@ async def main():
 
         # Finish ensemble metrics tracking
         if ensemble_metrics:
-            monitor.finish_ensemble_operation(
-                ensemble_metrics, True, len(refined_answer)
-            )
+            monitor.finish_ensemble_operation(ensemble_metrics, True, len(refined_answer))
 
         # Log performance statistics
         rate_limiter = get_rate_limiter()
@@ -762,9 +733,7 @@ async def main():
         # Log monitoring statistics
         perf_stats = monitor.get_ensemble_stats(recent_count=1)
         if perf_stats:
-            logger.info(
-                f"Performance: avg_duration={perf_stats.get('average_duration', 0):.2f}s"
-            )
+            logger.info(f"Performance: avg_duration={perf_stats.get('average_duration', 0):.2f}s")
 
         total_execution_time = time.time() - start_time
         logger.info(

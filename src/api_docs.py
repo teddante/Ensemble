@@ -6,10 +6,10 @@ future REST API endpoints. Currently, Ensemble AI is a CLI application,
 but this prepares for potential API server functionality.
 """
 
-from typing import Dict, Any, List, Optional, Callable, cast
-from dataclasses import dataclass, asdict
-from enum import Enum
 import json
+from dataclasses import asdict, dataclass
+from enum import Enum
+from typing import Any, Dict, List, Optional
 
 
 class APIVersion(Enum):
@@ -147,9 +147,7 @@ class OpenAPIGenerator:
                         "description": "Successful processing",
                         "content": {
                             "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/EnsembleResponse"
-                                }
+                                "schema": {"$ref": "#/components/schemas/EnsembleResponse"}
                             }
                         },
                     },
@@ -202,9 +200,7 @@ class OpenAPIGenerator:
                         "description": "Service is healthy",
                         "content": {
                             "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HealthResponse"
-                                }
+                                "schema": {"$ref": "#/components/schemas/HealthResponse"}
                             }
                         },
                     },
@@ -212,9 +208,7 @@ class OpenAPIGenerator:
                         "description": "Service is unhealthy",
                         "content": {
                             "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HealthResponse"
-                                }
+                                "schema": {"$ref": "#/components/schemas/HealthResponse"}
                             }
                         },
                     },
@@ -235,9 +229,7 @@ class OpenAPIGenerator:
                         "description": "List of available models",
                         "content": {
                             "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ModelsResponse"
-                                }
+                                "schema": {"$ref": "#/components/schemas/ModelsResponse"}
                             }
                         },
                     }
@@ -504,10 +496,10 @@ if __name__ == "__main__":
             refined_response="Example response",
             model_responses=[],
             processing_time=0.0,
-            models_used=[]
+            models_used=[],
         )
 
-    print(f"\nExample endpoint configuration:")
+    print("\nExample endpoint configuration:")
     print(f"Path: {process_ensemble_endpoint._api_path}")
     print(f"Method: {process_ensemble_endpoint._api_method.value}")
     print(f"Tags: {process_ensemble_endpoint._api_tags}")

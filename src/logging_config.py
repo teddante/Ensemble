@@ -9,16 +9,16 @@ This module provides environment-based logging configuration with support for:
 - Performance monitoring integration
 """
 
+import json
 import logging
 import logging.handlers
 import os
 import sys
-import json
+import threading
 import time
 import uuid
-from typing import Dict, Any, Optional
 from pathlib import Path
-import threading
+from typing import Dict, Optional
 
 # Thread-local storage for request context
 _request_context = threading.local()
@@ -29,10 +29,13 @@ class CorrelationIDFilter(logging.Filter):
 
     def filter(self, record):
         """Add correlation ID to the log record."""
-        record.correlation_id = getattr(
-            _request_context, "correlation_id", "no-correlation-id"
+        correlation_id = getattr(_request_context, "correlation_id", None)
+        request_id = getattr(_request_context, "request_id", None)
+
+        record.correlation_id = (
+            correlation_id if correlation_id is not None else "no-correlation-id"
         )
-        record.request_id = getattr(_request_context, "request_id", "no-request-id")
+        record.request_id = request_id if request_id is not None else "no-request-id"
         return True
 
 
@@ -124,6 +127,12 @@ class EnsembleLogger:
         self.handlers = []
         self._setup_complete = False
 
+    def reset(self):
+        """Reset the logger for testing purposes."""
+        self._setup_complete = False
+        self.handlers = []
+        self.logger = None
+
     def setup_logging(
         self,
         level: Optional[str] = None,
@@ -132,6 +141,7 @@ class EnsembleLogger:
         enable_rotation: bool = True,
         max_file_size: int = 10 * 1024 * 1024,  # 10MB
         backup_count: int = 5,
+        force_reset: bool = False,
     ) -> None:
         """
         Set up comprehensive logging configuration.
@@ -143,20 +153,19 @@ class EnsembleLogger:
             enable_rotation: Whether to enable log rotation
             max_file_size: Maximum file size before rotation
             backup_count: Number of backup files to keep
+            force_reset: Force reset even if already configured
         """
-        if self._setup_complete:
+        if self._setup_complete and not force_reset:
             return
 
         # Determine configuration from environment
         env = os.getenv("ENVIRONMENT", "development").lower()
-        level = level or os.getenv(
-            "LOG_LEVEL", "INFO" if env == "production" else "DEBUG"
-        )
+        level = level or os.getenv("LOG_LEVEL", "INFO" if env == "production" else "DEBUG")
         log_format = log_format or os.getenv(
             "LOG_FORMAT", "json" if env == "production" else "human"
         )
         log_file = log_file or os.getenv("LOG_FILE")
-        
+
         # Ensure level and log_format are not None
         if level is None:
             raise ValueError("Log level cannot be None")
@@ -216,9 +225,7 @@ class EnsembleLogger:
 
         self._setup_complete = True
         self.logger = logging.getLogger(__name__)
-        self.logger.info(
-            f"Logging configured: level={level}, format={log_format}, file={log_file}"
-        )
+        self.logger.info(f"Logging configured: level={level}, format={log_format}, file={log_file}")
 
     def _configure_library_loggers(self) -> None:
         """Configure logging levels for third-party libraries."""
@@ -267,6 +274,7 @@ def setup_logging(
     enable_rotation: bool = True,
     max_file_size: int = 10 * 1024 * 1024,
     backup_count: int = 5,
+    force_reset: bool = False,
 ) -> None:
     """
     Set up logging configuration for the Ensemble application.
@@ -278,9 +286,10 @@ def setup_logging(
         enable_rotation: Whether to enable log rotation
         max_file_size: Maximum file size before rotation
         backup_count: Number of backup files to keep
+        force_reset: Force reset even if already configured
     """
     _ensemble_logger.setup_logging(
-        level, log_format, log_file, enable_rotation, max_file_size, backup_count
+        level, log_format, log_file, enable_rotation, max_file_size, backup_count, force_reset
     )
 
 
@@ -336,6 +345,11 @@ def get_context() -> Dict[str, Optional[str]]:
     return _ensemble_logger.get_context()
 
 
+def reset_logging() -> None:
+    """Reset logging configuration for testing purposes."""
+    _ensemble_logger.reset()
+
+
 class LoggingContext:
     """Context manager for request logging."""
 
@@ -356,10 +370,13 @@ class LoggingContext:
         # Restore old context
         if self.old_context["correlation_id"]:
             set_correlation_id(self.old_context["correlation_id"])
+        else:
+            _request_context.correlation_id = None
+
         if self.old_context["request_id"]:
             set_request_id(self.old_context["request_id"])
         else:
-            clear_context()
+            _request_context.request_id = None
 
 
 # Performance logging helper

@@ -9,16 +9,16 @@ This module provides:
 - Error analytics and reporting
 """
 
+import json
 import logging
-import traceback
+import re
 import sys
 import time
-import re
-from typing import Dict, Any, Optional, List, Type, Callable
-from enum import Enum
-from dataclasses import dataclass, field
+import traceback
 from collections import defaultdict, deque
-import json
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 
 class ErrorSeverity(Enum):
@@ -95,9 +95,7 @@ class EnsembleError(Exception):
             ErrorCategory.SYSTEM: "System error occurred. Please contact support if it persists.",
             ErrorCategory.UNKNOWN: "An unexpected error occurred. Please try again.",
         }
-        return category_messages.get(
-            self.category, "An error occurred. Please try again."
-        )
+        return category_messages.get(self.category, "An error occurred. Please try again.")
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert error to dictionary for logging and serialization."""
@@ -375,7 +373,7 @@ class ErrorTracker:
         severities: defaultdict[str, int] = defaultdict(int)
         top_operations: defaultdict[str, int] = defaultdict(int)
         top_components: defaultdict[str, int] = defaultdict(int)
-        
+
         stats = {
             "total_errors": len(recent_errors),
             "error_rate_per_minute": len(recent_errors) / max(time_window_minutes, 1),
@@ -479,9 +477,7 @@ def handle_error(
     return ensemble_error
 
 
-def _convert_exception(
-    error: Exception, context: Optional[ErrorContext]
-) -> EnsembleError:
+def _convert_exception(error: Exception, context: Optional[ErrorContext]) -> EnsembleError:
     """Convert standard exceptions to appropriate EnsembleError types."""
     error_message = str(error)
     error_type = type(error).__name__
@@ -497,10 +493,7 @@ def _convert_exception(
         return ValidationError(f"Validation error: {error_message}", context=context)
     elif "rate limit" in error_message.lower():
         return RateLimitError(error_message, context=context)
-    elif (
-        "unauthorized" in error_message.lower()
-        or "authentication" in error_message.lower()
-    ):
+    elif "unauthorized" in error_message.lower() or "authentication" in error_message.lower():
         return AuthenticationError(error_message, context=context)
     else:
         return ProcessingError(f"{error_type}: {error_message}", context=context)
@@ -518,9 +511,7 @@ def error_handler(operation: str, component: str, **context_kwargs):
 
     def decorator(func: Callable) -> Callable:
         def wrapper(*args, **kwargs):
-            context = ErrorContext(
-                operation=operation, component=component, **context_kwargs
-            )
+            context = ErrorContext(operation=operation, component=component, **context_kwargs)
 
             try:
                 return func(*args, **kwargs)
@@ -548,9 +539,7 @@ class RecoveryStrategy:
 class RetryStrategy(RecoveryStrategy):
     """Recovery strategy that retries the operation."""
 
-    def __init__(
-        self, max_retries: int = 3, delay: float = 1.0, backoff_multiplier: float = 2.0
-    ):
+    def __init__(self, max_retries: int = 3, delay: float = 1.0, backoff_multiplier: float = 2.0):
         self.max_retries = max_retries
         self.delay = delay
         self.backoff_multiplier = backoff_multiplier
@@ -564,9 +553,7 @@ class RetryStrategy(RecoveryStrategy):
         }
         return error.category in retryable_categories
 
-    def recover(
-        self, error: EnsembleError, operation_func: Callable, *args, **kwargs
-    ) -> Any:
+    def recover(self, error: EnsembleError, operation_func: Callable, *args, **kwargs) -> Any:
         """Retry the operation with exponential backoff."""
         current_delay = self.delay
 

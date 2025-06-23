@@ -2,12 +2,12 @@
 Rate limiting utilities for API requests.
 """
 
-import time
 import asyncio
 import logging
-from typing import Dict, Optional
-from dataclasses import dataclass
+import time
 from collections import defaultdict
+from dataclasses import dataclass
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,7 @@ class RateLimiter:
     """
 
     def __init__(self, config: Optional[RateLimitConfig] = None):
+        """Initialize rate limiter with configuration."""
         self.config = config or RateLimitConfig()
         self._request_times: Dict[str, list] = defaultdict(list)
         self._locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
@@ -110,9 +111,7 @@ class RateLimiter:
         very_recent = [t for t in request_times if t > current_time - 0.1]
         if len(very_recent) >= self.config.burst_limit:
             wait_time = 0.1
-            logger.info(
-                f"Rate limit: Waiting {wait_time:.2f}s for {model_name} (burst limit)"
-            )
+            logger.info(f"Rate limit: Waiting {wait_time:.2f}s for {model_name} (burst limit)")
             await asyncio.sleep(wait_time)
 
     async def _apply_backoff(self, model_name: str) -> None:
@@ -135,9 +134,7 @@ class RateLimiter:
         current_time = time.time()
 
         # Get all models that have either requests or failures
-        all_models = set(self._request_times.keys()) | set(
-            self._consecutive_failures.keys()
-        )
+        all_models = set(self._request_times.keys()) | set(self._consecutive_failures.keys())
 
         for model_name in all_models:
             request_times = self._request_times.get(model_name, [])
@@ -147,8 +144,7 @@ class RateLimiter:
                 "requests_last_minute": len(recent_requests),
                 "consecutive_failures": self._consecutive_failures.get(model_name, 0),
                 "backoff_until": self._backoff_times.get(model_name, 0.0),
-                "is_backing_off": self._backoff_times.get(model_name, 0.0)
-                > current_time,
+                "is_backing_off": self._backoff_times.get(model_name, 0.0) > current_time,
             }
 
         return stats

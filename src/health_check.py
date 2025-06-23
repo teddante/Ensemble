@@ -3,17 +3,17 @@ Health check system for Ensemble application.
 """
 
 import asyncio
-import time
+import json
 import logging
-from typing import Dict, List, Any, Optional
+import time
 from dataclasses import dataclass
 from enum import Enum
-import json
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-from monitoring import get_performance_monitor
 from config import load_config
-from validation import sanitize_prompt, PromptValidationError
+from monitoring import get_performance_monitor
+from validation import PromptValidationError, sanitize_prompt
 
 
 class HealthStatus(Enum):
@@ -69,9 +69,7 @@ class HealthChecker:
                 result = await check()
                 results.append(result)
             except Exception as e:
-                self.logger.exception(
-                    f"Health check {check.__name__} failed with exception"
-                )
+                self.logger.exception(f"Health check {check.__name__} failed with exception")
                 results.append(
                     HealthCheckResult(
                         name=check.__name__,
@@ -110,9 +108,7 @@ class HealthChecker:
 
             # Check required fields
             required_fields = ["MODELS", "REFINEMENT_MODEL_NAME"]
-            missing_fields = [
-                field for field in required_fields if not config.get(field)
-            ]
+            missing_fields = [field for field in required_fields if not config.get(field)]
 
             if missing_fields:
                 return HealthCheckResult(
@@ -188,6 +184,7 @@ class HealthChecker:
                 import pydantic
 
                 pydantic_available = True
+                _ = pydantic.__version__  # Mark as used
             except ImportError:
                 pydantic_available = False
 
@@ -195,6 +192,7 @@ class HealthChecker:
                 import bleach
 
                 bleach_available = True
+                _ = bleach.__version__  # Mark as used
             except ImportError:
                 bleach_available = False
 
@@ -202,14 +200,19 @@ class HealthChecker:
                 import ratelimit
 
                 ratelimit_available = True
+                _ = ratelimit.__version__  # Mark as used
             except ImportError:
                 ratelimit_available = False
 
             # Test basic functionality if available
             if openai_available:
                 from openai import OpenAI
+
+                _ = OpenAI  # Mark as used
             if pydantic_available:
                 from pydantic import BaseModel
+
+                _ = BaseModel  # Mark as used
 
             # Determine overall status
             missing_critical = []
@@ -220,9 +223,7 @@ class HealthChecker:
 
             if missing_critical:
                 status = HealthStatus.UNHEALTHY
-                message = (
-                    f"Critical dependencies missing: {', '.join(missing_critical)}"
-                )
+                message = f"Critical dependencies missing: {', '.join(missing_critical)}"
             elif not bleach_available or not ratelimit_available:
                 status = HealthStatus.DEGRADED
                 missing = []
@@ -371,9 +372,7 @@ class HealthChecker:
             # Check if we have concerning metrics
             if health_status["status"] == "degraded":
                 status = HealthStatus.DEGRADED
-                message = (
-                    f"Performance issues detected: {', '.join(health_status['issues'])}"
-                )
+                message = f"Performance issues detected: {', '.join(health_status['issues'])}"
 
             return HealthCheckResult(
                 name="performance_metrics",
@@ -401,8 +400,9 @@ class HealthChecker:
         start_time = time.time()
 
         try:
-            import psutil
             import os
+
+            import psutil
 
             # Get current process memory usage
             process = psutil.Process(os.getpid())
@@ -414,16 +414,16 @@ class HealthChecker:
             memory_percent = (memory_mb / (system_memory.total / 1024 / 1024)) * 100
 
             status = HealthStatus.HEALTHY
-            message = (
-                f"Memory usage: {memory_mb:.1f}MB ({memory_percent:.1f}% of system)"
-            )
+            message = f"Memory usage: {memory_mb:.1f}MB ({memory_percent:.1f}% of system)"
 
             if memory_percent > 80:
                 status = HealthStatus.DEGRADED
                 message = f"High memory usage: {memory_mb:.1f}MB ({memory_percent:.1f}% of system)"
             elif memory_percent > 95:
                 status = HealthStatus.UNHEALTHY
-                message = f"Critical memory usage: {memory_mb:.1f}MB ({memory_percent:.1f}% of system)"
+                message = (
+                    f"Critical memory usage: {memory_mb:.1f}MB ({memory_percent:.1f}% of system)"
+                )
 
             return HealthCheckResult(
                 name="memory_usage",
@@ -454,9 +454,7 @@ class HealthChecker:
                 details={"error": str(e)},
             )
 
-    def _determine_overall_status(
-        self, results: List[HealthCheckResult]
-    ) -> HealthStatus:
+    def _determine_overall_status(self, results: List[HealthCheckResult]) -> HealthStatus:
         """Determine overall health status from individual check results."""
         if any(result.status == HealthStatus.UNHEALTHY for result in results):
             return HealthStatus.UNHEALTHY
@@ -477,9 +475,7 @@ class HealthChecker:
             "healthy_checks": healthy_checks,
             "degraded_checks": degraded_checks,
             "unhealthy_checks": unhealthy_checks,
-            "health_percentage": (
-                (healthy_checks / total_checks * 100) if total_checks > 0 else 0
-            ),
+            "health_percentage": ((healthy_checks / total_checks * 100) if total_checks > 0 else 0),
         }
 
 
@@ -520,7 +516,6 @@ def export_health_check(format: str = "json") -> str:
 
 if __name__ == "__main__":
     # Command-line health check
-    import asyncio
 
     async def main():
         results = await run_health_check()
