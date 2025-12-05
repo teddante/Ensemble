@@ -160,6 +160,35 @@ export default function Home() {
     }
   }, []);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Detect if Mac (Cmd) or Windows (Ctrl)
+      const modKey = e.metaKey || e.ctrlKey;
+
+      // Escape - Cancel generation
+      if (e.key === 'Escape' && isGenerating) {
+        e.preventDefault();
+        handleCancel();
+      }
+
+      // Ctrl/Cmd + , - Open settings
+      if (modKey && e.key === ',') {
+        e.preventDefault();
+        setIsSettingsOpen(true);
+      }
+
+      // Ctrl/Cmd + h - Open history
+      if (modKey && e.key === 'h' && !e.shiftKey) {
+        e.preventDefault();
+        setIsHistoryOpen(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isGenerating, handleCancel]);
+
   // Use a ref to store authoritative state for history saving (fixes race condition)
   const generationStateRef = useRef<{
     responses: ModelResponse[];

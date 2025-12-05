@@ -1,7 +1,6 @@
 // Input validation utilities
 
-const MAX_PROMPT_LENGTH = 50000;
-const MIN_PROMPT_LENGTH = 1;
+import { MAX_PROMPT_LENGTH, MIN_PROMPT_LENGTH, MAX_MODELS, MIN_API_KEY_LENGTH } from './constants';
 
 export interface ValidationResult {
     isValid: boolean;
@@ -43,7 +42,7 @@ export function validateApiKey(apiKey: string): ValidationResult {
 
     const trimmed = apiKey.trim();
 
-    if (trimmed.length < 10) {
+    if (trimmed.length < MIN_API_KEY_LENGTH) {
         return { isValid: false, error: 'API key appears to be invalid' };
     }
 
@@ -60,8 +59,8 @@ export function validateModels(models: string[]): ValidationResult {
         return { isValid: false, error: 'At least one model must be selected' };
     }
 
-    if (models.length > 10) {
-        return { isValid: false, error: 'Maximum of 10 models can be selected' };
+    if (models.length > MAX_MODELS) {
+        return { isValid: false, error: `Maximum of ${MAX_MODELS} models can be selected` };
     }
 
     // Validate model ID format (provider/model-name)

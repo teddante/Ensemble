@@ -1,5 +1,8 @@
 // Session lock manager for preventing concurrent generation requests
 // Uses in-memory storage - suitable for single-instance deployments
+// TODO: For production with multiple instances, use Redis/Upstash for distributed locking
+
+import { hashString } from './utils';
 
 interface LockEntry {
     acquiredAt: number;
@@ -111,10 +114,6 @@ export function getSessionIdentifier(request: Request): string {
 
     // Last resort: user-agent hash
     const ua = request.headers.get('user-agent') || 'unknown';
-    let hash = 0;
-    for (let i = 0; i < ua.length; i++) {
-        hash = ((hash << 5) - hash) + ua.charCodeAt(i);
-        hash = hash & hash;
-    }
-    return `ua-${Math.abs(hash).toString(36)}`;
+    return `ua-${hashString(ua)}`;
 }
+

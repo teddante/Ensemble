@@ -1,6 +1,8 @@
 // Encryption utilities for API key storage
 // Uses Web Crypto API (available in Edge runtime)
 
+import { ENCRYPTION_MAGIC_PREFIX } from './constants';
+
 const ALGORITHM = 'AES-GCM';
 const IV_LENGTH = 12; // 96 bits recommended for GCM
 const TAG_LENGTH = 128;
@@ -10,11 +12,10 @@ function getEncryptionKey(): string {
     const key = process.env.COOKIE_ENCRYPTION_KEY;
 
     if (!key) {
-        // In development, use a default key (NOT SECURE FOR PRODUCTION)
-        if (process.env.NODE_ENV === 'development') {
-            return 'dev-only-key-not-for-production!';
-        }
-        throw new Error('COOKIE_ENCRYPTION_KEY environment variable is required in production');
+        throw new Error(
+            'COOKIE_ENCRYPTION_KEY environment variable is required.\n' +
+            'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+        );
     }
 
     if (key.length < 32) {
@@ -65,8 +66,8 @@ export async function encrypt(plaintext: string): Promise<string> {
     combined.set(iv, 0);
     combined.set(new Uint8Array(ciphertext), iv.length);
 
-    // Base64 encode for storage
-    return btoa(String.fromCharCode(...combined));
+    // Base64 encode for storage with magic prefix
+    return ENCRYPTION_MAGIC_PREFIX + btoa(String.fromCharCode(...combined));
 }
 
 /**
@@ -78,8 +79,11 @@ export async function decrypt(ciphertext: string): Promise<string> {
     const key = await deriveKey(getEncryptionKey());
     const decoder = new TextDecoder();
 
-    // Decode from base64
-    const combined = Uint8Array.from(atob(ciphertext), c => c.charCodeAt(0));
+    // Strip magic prefix and decode from base64
+    const base64Data = ciphertext.startsWith(ENCRYPTION_MAGIC_PREFIX)
+        ? ciphertext.slice(ENCRYPTION_MAGIC_PREFIX.length)
+        : ciphertext; // Handle legacy values without prefix
+    const combined = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
 
     // Extract IV and ciphertext
     const iv = combined.slice(0, IV_LENGTH);
@@ -96,14 +100,8 @@ export async function decrypt(ciphertext: string): Promise<string> {
 }
 
 /**
- * Check if a value appears to be encrypted (base64 with proper length)
+ * Check if a value is encrypted using magic prefix
  */
 export function isEncrypted(value: string): boolean {
-    try {
-        const decoded = atob(value);
-        // Minimum length: IV (12) + some ciphertext + tag (16)
-        return decoded.length >= IV_LENGTH + 16 + 10;
-    } catch {
-        return false;
-    }
+    return value.startsWith(ENCRYPTION_MAGIC_PREFIX);
 }

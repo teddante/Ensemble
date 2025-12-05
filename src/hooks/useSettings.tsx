@@ -78,6 +78,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         try {
             const res = await fetch('/api/key', {
                 credentials: 'include',
+                headers: { 'X-Requested-With': 'fetch' },
             });
             if (res.ok) {
                 const data = await res.json();

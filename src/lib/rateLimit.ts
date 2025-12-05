@@ -1,5 +1,8 @@
 // Simple token bucket rate limiter for Edge runtime
 // Uses in-memory storage - suitable for single-instance deployments
+// TODO: For production with multiple instances, use Redis/Upstash for distributed rate limiting
+
+import { hashString } from './utils';
 
 interface Bucket {
     tokens: number;
@@ -97,15 +100,6 @@ export function getClientIdentifier(request: Request): string {
 
     // Fallback to a hash of user-agent + some other identifying info
     const ua = request.headers.get('user-agent') || 'unknown';
-    return `ua-${hashCode(ua)}`;
+    return `ua-${hashString(ua)}`;
 }
 
-function hashCode(str: string): string {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Convert to 32bit integer
-    }
-    return Math.abs(hash).toString(36);
-}

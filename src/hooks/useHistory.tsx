@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ModelResponse } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
+import { MAX_HISTORY_ITEMS } from '@/lib/constants';
 
 export interface HistoryItem {
     id: string;
@@ -15,10 +16,10 @@ export interface HistoryItem {
 }
 
 const STORAGE_KEY = 'ensemble_history';
-const MAX_HISTORY_ITEMS = 50;
 
 export function useHistory() {
     const [history, setHistory] = useState<HistoryItem[]>([]);
+    const [storageWarning, setStorageWarning] = useState<string | null>(null);
 
     // Load history on mount
     useEffect(() => {
@@ -32,29 +33,39 @@ export function useHistory() {
         }
     }, []);
 
-    const saveToLocalStorage = (items: HistoryItem[]) => {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-        } catch (error) {
-            if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-                // Trim oldest items and retry
-                console.warn('localStorage quota exceeded, trimming history');
-                const trimmed = items.slice(0, Math.floor(items.length / 2));
-                try {
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
-                    // Update state with trimmed items
-                    setHistory(trimmed);
-                } catch {
-                    // If still failing, clear history
-                    console.error('Failed to save history even after trimming, clearing');
-                    localStorage.removeItem(STORAGE_KEY);
-                    setHistory([]);
+    const saveToLocalStorage = useCallback((items: HistoryItem[]) => {
+        let itemsToSave = items;
+        let evictedCount = 0;
+
+        // Try to save with progressive eviction
+        while (itemsToSave.length > 0) {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(itemsToSave));
+
+                if (evictedCount > 0) {
+                    setStorageWarning(`Removed ${evictedCount} oldest items due to storage limits`);
+                    // Clear warning after 5 seconds
+                    setTimeout(() => setStorageWarning(null), 5000);
                 }
-            } else {
-                console.error('Failed to save history:', error);
+                return itemsToSave;
+            } catch (error) {
+                if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+                    // Remove oldest item (LRU eviction)
+                    itemsToSave = itemsToSave.slice(0, -1);
+                    evictedCount++;
+                } else {
+                    console.error('Failed to save history:', error);
+                    return items; // Return original items on non-quota error
+                }
             }
         }
-    };
+
+        // If we get here, we couldn't save anything
+        console.error('Failed to save history: storage quota exhausted');
+        localStorage.removeItem(STORAGE_KEY);
+        setStorageWarning('History cleared due to storage limits');
+        return [];
+    }, []);
 
     const addToHistory = useCallback((
         prompt: string,
@@ -75,10 +86,10 @@ export function useHistory() {
 
         setHistory(prev => {
             const newHistory = [newItem, ...prev].slice(0, MAX_HISTORY_ITEMS);
-            saveToLocalStorage(newHistory);
-            return newHistory;
+            const saved = saveToLocalStorage(newHistory);
+            return saved;
         });
-    }, []);
+    }, [saveToLocalStorage]);
 
     const deleteItem = useCallback((id: string) => {
         setHistory(prev => {
@@ -86,10 +97,11 @@ export function useHistory() {
             saveToLocalStorage(newHistory);
             return newHistory;
         });
-    }, []);
+    }, [saveToLocalStorage]);
 
     const clearHistory = useCallback(() => {
         setHistory([]);
+        setStorageWarning(null);
         localStorage.removeItem(STORAGE_KEY);
     }, []);
 
@@ -97,6 +109,8 @@ export function useHistory() {
         history,
         addToHistory,
         deleteItem,
-        clearHistory
+        clearHistory,
+        storageWarning
     };
 }
+

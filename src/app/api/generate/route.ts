@@ -6,6 +6,7 @@ import { StreamEvent, ReasoningParams } from '@/types';
 import { generateRateLimiter, getClientIdentifier } from '@/lib/rateLimit';
 import { generationLock, getSessionIdentifier } from '@/lib/sessionLock';
 import { getApiKeyFromCookie } from '@/app/api/key/route';
+import { MAX_REQUEST_BODY_SIZE } from '@/lib/constants';
 
 export const runtime = 'edge';
 
@@ -127,16 +128,28 @@ export async function POST(request: NextRequest): Promise<Response> {
             );
         }
 
+        // Check request body size
+        const contentLength = request.headers.get('content-length');
+        if (contentLength && parseInt(contentLength, 10) > MAX_REQUEST_BODY_SIZE) {
+            generationLock.release(sessionId);
+            return Response.json(
+                { error: 'Request body too large' },
+                { status: 413 }
+            );
+        }
+
         const body = await request.json();
         const { prompt, models, refinementModel, reasoning } = body;
 
-        // Get API key from Cookie (primary, decrypted) or Header/Body (fallback)
-        let apiKey: string | null = await getApiKeyFromCookie();
+        // Get API key from Cookie only (secure storage)
+        const apiKey: string | null = await getApiKeyFromCookie();
 
         if (!apiKey) {
-            // Fallback to header/body for backwards compatibility
-            apiKey = request.headers.get('authorization')?.replace('Bearer ', '') ||
-                body.apiKey || null;
+            generationLock.release(sessionId);
+            return Response.json(
+                { error: 'API key not configured. Please set your API key in Settings.' },
+                { status: 401 }
+            );
         }
 
         // Validate inputs

@@ -2,13 +2,13 @@
 import { OpenRouter } from '@openrouter/sdk';
 import { ReasoningParams } from '@/types';
 import { OpenRouterUsage, OpenRouterDelta } from '@/types/openrouter.types';
+import { MAX_SYNTHESIS_CHARS, MAX_RETRIES, INITIAL_RETRY_DELAY_MS } from '@/lib/constants';
 
-export const MAX_SYNTHESIS_CHARS = 8000;
+// Re-export for backward compatibility
+export { MAX_SYNTHESIS_CHARS };
 
 // Retry configuration
-const MAX_RETRIES = 2;
 const RETRYABLE_STATUS_CODES = [429, 502, 503, 504];
-const INITIAL_RETRY_DELAY_MS = 1000;
 
 // Check if an error is retryable
 function isRetryableError(error: unknown): boolean {

@@ -16,6 +16,14 @@ function validateCSRF(request: NextRequest): boolean {
 }
 
 export async function GET(request: NextRequest) {
+    // CSRF protection for consistency
+    if (!validateCSRF(request)) {
+        return NextResponse.json(
+            { error: 'Invalid request' },
+            { status: 403 }
+        );
+    }
+
     // Rate limiting
     const clientId = getClientIdentifier(request);
     const rateLimit = await keyRateLimiter.check(clientId);
