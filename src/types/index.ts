@@ -10,6 +10,26 @@ export interface Model {
         prompt: string;
         completion: string;
     };
+    architecture?: {
+        input_modalities: string[];
+        output_modalities: string[];
+        tokenizer: string;
+        instruct_type: string | null;
+    };
+    top_provider?: {
+        context_length: number;
+        max_completion_tokens: number;
+        is_moderated: boolean;
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    per_request_limits?: any;
+}
+
+export interface ReasoningParams {
+    effort?: 'high' | 'medium' | 'low' | 'minimal' | 'none';
+    max_tokens?: number;
+    exclude?: boolean;
+    enabled?: boolean;
 }
 
 export interface ModelResponse {
@@ -30,6 +50,7 @@ export interface GenerationRequest {
 export interface StreamEvent {
     type:
     | 'model_start'
+    | 'model_reasoning' // New event type for reasoning chunks
     | 'model_chunk'
     | 'model_complete'
     | 'model_error'
@@ -40,6 +61,7 @@ export interface StreamEvent {
     | 'error';
     modelId?: string;
     content?: string;
+    reasoning?: string; // Content for reasoning/thinking chunks
     error?: string;
     tokens?: number;
 }

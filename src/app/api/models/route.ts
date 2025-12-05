@@ -26,7 +26,10 @@ export async function GET() {
             provider: m.id.split('/')[0], // Simple heuristic, works for most "provider/model" IDs
             description: m.description || '',
             contextWindow: m.context_length,
-            pricing: m.pricing
+            pricing: m.pricing,
+            architecture: m.architecture,
+            top_provider: m.top_provider,
+            per_request_limits: m.per_request_limits
         }));
 
         return NextResponse.json({ models });

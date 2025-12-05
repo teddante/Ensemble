@@ -1,5 +1,6 @@
 // OpenRouter API client using the official SDK
 import { OpenRouter } from '@openrouter/sdk';
+import { ReasoningParams } from '@/types';
 
 export function createOpenRouterClient(apiKey: string): OpenRouter {
     return new OpenRouter({
@@ -13,7 +14,9 @@ export interface StreamOptions {
     prompt: string;
     model: string;
     apiKey: string;
+    reasoning?: ReasoningParams;
     onChunk: (content: string) => void;
+    onReasoning?: (content: string) => void;
     onComplete: (fullContent: string) => void;
     onError: (error: string) => void;
     signal?: AbortSignal;
@@ -23,7 +26,9 @@ export async function streamModelResponse({
     prompt,
     model,
     apiKey,
+    reasoning,
     onChunk,
+    onReasoning,
     onComplete,
     onError,
     signal,
@@ -36,6 +41,7 @@ export async function streamModelResponse({
             {
                 model,
                 messages: [{ role: 'user', content: prompt }],
+                reasoning: reasoning,
                 stream: true,
             },
             { signal }
@@ -48,6 +54,18 @@ export async function streamModelResponse({
                 return;
             }
 
+            // Handle reasoning/thinking tokens
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const reasoningContent = (chunk.choices?.[0]?.delta as any)?.reasoning ||
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (chunk.choices?.[0]?.delta as any)?.reasoning_details?.text ||
+                null;
+
+            if (reasoningContent && onReasoning) {
+                onReasoning(reasoningContent);
+            }
+
+            // Handle content tokens
             const content = chunk.choices?.[0]?.delta?.content;
             if (content) {
                 fullContent += content;

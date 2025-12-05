@@ -26,6 +26,7 @@ async function streamModelResponse(
     client: OpenRouter,
     model: string,
     prompt: string,
+    reasoning: any, // Pass reasoning params
     controller: ReadableStreamDefaultController,
     signal: AbortSignal
 ): Promise<{ modelId: string; content: string; success: boolean }> {
@@ -38,6 +39,7 @@ async function streamModelResponse(
             {
                 model,
                 messages: [{ role: 'user', content: prompt }],
+                reasoning, // Pass reasoning
                 stream: true,
             },
             { signal }
@@ -51,6 +53,17 @@ async function streamModelResponse(
                     error: chunk.error.message || 'Unknown error'
                 });
                 return { modelId: model, content: '', success: false };
+            }
+
+            // Handle reasoning - checking both possible locations based on SDK/API version
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const reasoningContent = (chunk.choices?.[0]?.delta as any)?.reasoning ||
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (chunk.choices?.[0]?.delta as any)?.reasoning_details?.text ||
+                null;
+
+            if (reasoningContent) {
+                sendEvent(controller, { type: 'model_reasoning', modelId: model, reasoning: reasoningContent });
             }
 
             const content = chunk.choices?.[0]?.delta?.content;
@@ -78,7 +91,7 @@ async function streamModelResponse(
 export async function POST(request: NextRequest): Promise<Response> {
     try {
         const body = await request.json();
-        const { prompt, models, refinementModel } = body;
+        const { prompt, models, refinementModel, reasoning } = body;
 
         // Get API key from Authorization header
         const authHeader = request.headers.get('authorization');
@@ -126,6 +139,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                             client,
                             model,
                             promptValidation.sanitized!,
+                            reasoning,
                             controller,
                             abortController.signal
                         )
