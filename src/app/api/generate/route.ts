@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { cookies } from 'next/headers';
 import { OpenRouter } from '@openrouter/sdk';
 import { validatePrompt, validateApiKey, validateModels } from '@/lib/validation';
 import { createSynthesisPrompt, streamModelResponse as libStreamModelResponse } from '@/lib/openrouter';
@@ -82,9 +83,11 @@ export async function POST(request: NextRequest): Promise<Response> {
         const body = await request.json();
         const { prompt, models, refinementModel, reasoning } = body;
 
-        // Get API key from Authorization header
-        const authHeader = request.headers.get('authorization');
-        const apiKey = authHeader?.replace('Bearer ', '') || body.apiKey;
+        // Get API key from Cookie (primary) or Header/Body (fallback)
+        const cookieStore = await cookies();
+        const apiKey = cookieStore.get('ensemble_api_key')?.value ||
+            request.headers.get('authorization')?.replace('Bearer ', '') ||
+            body.apiKey;
 
         // Validate inputs
         const promptValidation = validatePrompt(prompt);

@@ -8,9 +8,10 @@ interface SynthesizedResponseProps {
     content: string;
     isStreaming: boolean;
     isGenerating: boolean;
+    truncatedModels?: string[];
 }
 
-export function SynthesizedResponse({ content, isStreaming, isGenerating }: SynthesizedResponseProps) {
+export function SynthesizedResponse({ content, isStreaming, isGenerating, truncatedModels = [] }: SynthesizedResponseProps) {
     const [copied, setCopied] = useState(false);
 
     const handleCopy = async () => {
@@ -62,6 +63,28 @@ export function SynthesizedResponse({ content, isStreaming, isGenerating }: Synt
                     </button>
                 )}
             </div>
+
+            {truncatedModels.length > 0 && (
+                <div className="truncation-warning" style={{
+                    backgroundColor: 'rgba(234, 179, 8, 0.1)',
+                    border: '1px solid rgba(234, 179, 8, 0.2)',
+                    color: '#fbbf24',
+                    padding: '0.75rem',
+                    borderRadius: '0.5rem',
+                    marginBottom: '1rem',
+                    fontSize: '0.9rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                }}>
+                    <span>⚠️</span>
+                    <span>
+                        Input from {truncatedModels.length} model{truncatedModels.length > 1 ? 's' : ''}
+                        ({truncatedModels.join(', ')}) was truncated to prevent context overflow.
+                        Synthesis may be less accurate.
+                    </span>
+                </div>
+            )}
 
             <div className="synthesized-content">
                 {content ? (

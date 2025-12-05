@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect, useCallback } from 'react';
 import { ModelResponse } from '@/types';
 import { v4 as uuidv4 } from 'uuid';

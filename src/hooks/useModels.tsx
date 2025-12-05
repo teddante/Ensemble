@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { Model, FALLBACK_MODELS } from '@/types';
 

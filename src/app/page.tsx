@@ -1,5 +1,7 @@
 'use client';
 
+import { MAX_SYNTHESIS_CHARS } from '@/lib/openrouter';
+
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Header } from '@/components/Header';
 import { SettingsModal } from '@/components/SettingsModal';
@@ -25,6 +27,7 @@ export default function Home() {
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [responses, setResponses] = useState<ModelResponse[]>([]);
   const [synthesizedContent, setSynthesizedContent] = useState('');
+  const [truncatedModels, setTruncatedModels] = useState<string[]>([]);
   const [prompt, setPrompt] = useState(''); // Need to track prompt for saving
   const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +50,7 @@ export default function Home() {
     setIsGenerating(true);
     setError(null);
     setSynthesizedContent('');
+    setTruncatedModels([]);
     setIsSynthesizing(false);
 
     // Check for context window limits
@@ -74,6 +78,7 @@ export default function Home() {
     }));
     setResponses(initialResponses);
     setSynthesizedContent('');
+    // Initialize ref for new generation
     // Initialize ref for new generation
     generationStateRef.current = { responses: initialResponses, synthesizedContent: '' };
 
@@ -199,6 +204,9 @@ export default function Home() {
         break;
 
       case 'model_complete':
+        if ((event.content || '').length > MAX_SYNTHESIS_CHARS) {
+          setTruncatedModels(prev => [...prev, event.modelId || '']);
+        }
         updateState(prev => prev.map(r =>
           r.modelId === event.modelId
             ? { ...r, status: 'complete', content: event.content || r.content, tokens: event.tokens }
@@ -305,6 +313,7 @@ export default function Home() {
             content={synthesizedContent}
             isStreaming={isSynthesizing}
             isGenerating={isGenerating}
+            truncatedModels={truncatedModels}
           />
         )}
 
