@@ -1,26 +1,22 @@
 import { NextResponse } from 'next/server';
+import { OpenRouter } from '@openrouter/sdk';
 
 export const runtime = 'edge';
 
 export async function GET() {
     try {
-        const response = await fetch('https://openrouter.ai/api/v1/models', {
-            headers: {
-                'Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://ensemble.app',
-                'X-Title': 'Ensemble Multi-LLM',
-            },
-            next: { revalidate: 3600 } // Cache for 1 hour
+        const client = new OpenRouter({
+            apiKey: process.env.OPENROUTER_API_KEY || '', // Optional for public models list, but good practice
+            httpReferer: process.env.NEXT_PUBLIC_APP_URL || 'https://ensemble.app',
+            xTitle: 'Ensemble Multi-LLM',
         });
 
-        if (!response.ok) {
-            throw new Error(`OpenRouter API responded with ${response.status}`);
-        }
-
-        const data = await response.json();
+        const response = await client.models.list();
+        const data = response.data;
 
         // Transform to our internal Model interface
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const models = data.data.map((m: any) => ({
+        const models = data.map((m: any) => ({
             id: m.id,
             name: m.name,
             provider: m.id.split('/')[0], // Simple heuristic, works for most "provider/model" IDs

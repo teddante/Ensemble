@@ -17,7 +17,7 @@ export interface StreamOptions {
     reasoning?: ReasoningParams;
     onChunk: (content: string) => void;
     onReasoning?: (content: string) => void;
-    onComplete: (fullContent: string) => void;
+    onComplete: (fullContent: string, usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }) => void;
     onError: (error: string) => void;
     signal?: AbortSignal;
 }
@@ -35,6 +35,8 @@ export async function streamModelResponse({
 }: StreamOptions): Promise<void> {
     const client = createOpenRouterClient(apiKey);
     let fullContent = '';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let finalUsage: any;
 
     try {
         const stream = await client.chat.send(
@@ -43,6 +45,7 @@ export async function streamModelResponse({
                 messages: [{ role: 'user', content: prompt }],
                 reasoning: reasoning,
                 stream: true,
+                streamOptions: { includeUsage: true }
             },
             { signal }
         );
@@ -52,6 +55,11 @@ export async function streamModelResponse({
             if ('error' in chunk && chunk.error) {
                 onError(chunk.error.message || 'Unknown error');
                 return;
+            }
+
+            // Handle usage if present (usually in the last chunk)
+            if (chunk.usage) {
+                finalUsage = chunk.usage;
             }
 
             // Handle reasoning/thinking tokens
@@ -73,7 +81,7 @@ export async function streamModelResponse({
             }
         }
 
-        onComplete(fullContent);
+        onComplete(fullContent, finalUsage);
     } catch (error) {
         if (error instanceof Error) {
             if (error.name === 'AbortError') {

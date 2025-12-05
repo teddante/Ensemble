@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { OpenRouter } from '@openrouter/sdk';
 import { validatePrompt, validateApiKey, validateModels } from '@/lib/validation';
-import { createSynthesisPrompt } from '@/lib/openrouter';
+import { createSynthesisPrompt, streamModelResponse as libStreamModelResponse } from '@/lib/openrouter';
 import { StreamEvent } from '@/types';
 
 export const runtime = 'edge';
@@ -22,65 +22,54 @@ function sendEvent(controller: ReadableStreamDefaultController, event: StreamEve
     controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`));
 }
 
-async function streamModelResponse(
-    client: OpenRouter,
+async function generateSingleModelResponse(
     model: string,
     prompt: string,
-    reasoning: any, // Pass reasoning params
+    apiKey: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    reasoning: any,
     controller: ReadableStreamDefaultController,
     signal: AbortSignal
-): Promise<{ modelId: string; content: string; success: boolean }> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<{ modelId: string; content: string; success: boolean; usage?: any }> {
     let fullContent = '';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let finalUsage: any;
 
     sendEvent(controller, { type: 'model_start', modelId: model });
 
     try {
-        const stream = await client.chat.send(
-            {
-                model,
-                messages: [{ role: 'user', content: prompt }],
-                reasoning, // Pass reasoning
-                stream: true,
-            },
-            { signal }
-        );
-
-        for await (const chunk of stream) {
-            if ('error' in chunk && chunk.error) {
-                sendEvent(controller, {
-                    type: 'model_error',
-                    modelId: model,
-                    error: chunk.error.message || 'Unknown error'
-                });
-                return { modelId: model, content: '', success: false };
-            }
-
-            // Handle reasoning - checking both possible locations based on SDK/API version
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const reasoningContent = (chunk.choices?.[0]?.delta as any)?.reasoning ||
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (chunk.choices?.[0]?.delta as any)?.reasoning_details?.text ||
-                null;
-
-            if (reasoningContent) {
-                sendEvent(controller, { type: 'model_reasoning', modelId: model, reasoning: reasoningContent });
-            }
-
-            const content = chunk.choices?.[0]?.delta?.content;
-            if (content) {
+        await libStreamModelResponse({
+            prompt,
+            model,
+            apiKey,
+            reasoning,
+            onChunk: (content) => {
                 fullContent += content;
                 sendEvent(controller, { type: 'model_chunk', modelId: model, content });
-            }
-        }
+            },
+            onReasoning: (text) => {
+                sendEvent(controller, { type: 'model_reasoning', modelId: model, reasoning: text });
+            },
+            onComplete: (content, usage) => {
+                // fullContent is already accumulated, but we can verify/update if needed. 
+                // usage is what we really want here.
+                finalUsage = usage;
+            },
+            onError: (error) => {
+                throw new Error(error);
+            },
+            signal
+        });
 
         sendEvent(controller, {
             type: 'model_complete',
             modelId: model,
             content: fullContent,
-            tokens: fullContent.split(/\s+/).filter(Boolean).length // Word count approximation
+            tokens: finalUsage?.total_tokens || fullContent.split(/\s+/).filter(Boolean).length
         });
 
-        return { modelId: model, content: fullContent, success: true };
+        return { modelId: model, content: fullContent, success: true, usage: finalUsage };
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         sendEvent(controller, { type: 'model_error', modelId: model, error: errorMessage });
@@ -95,7 +84,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
         // Get API key from Authorization header
         const authHeader = request.headers.get('authorization');
-        const apiKey = authHeader?.replace('Bearer ', '') || body.apiKey; // Fallback to body for transition
+        const apiKey = authHeader?.replace('Bearer ', '') || body.apiKey;
 
         // Validate inputs
         const promptValidation = validatePrompt(prompt);
@@ -113,7 +102,7 @@ export async function POST(request: NextRequest): Promise<Response> {
             return Response.json({ error: modelsValidation.error }, { status: 400 });
         }
 
-        // Create OpenRouter client
+        // We use this client for synthesis only now
         // Get referer from request or use default
         const referer = request.headers.get('referer') ||
             request.headers.get('origin') ||
@@ -135,10 +124,10 @@ export async function POST(request: NextRequest): Promise<Response> {
                 try {
                     // Fetch responses from all models in parallel
                     const modelPromises = models.map((model: string) =>
-                        streamModelResponse(
-                            client,
+                        generateSingleModelResponse(
                             model,
                             promptValidation.sanitized!,
+                            apiKeyValidation.sanitized!,
                             reasoning,
                             controller,
                             abortController.signal
@@ -169,6 +158,10 @@ export async function POST(request: NextRequest): Promise<Response> {
                             successfulResponses
                         );
 
+                        // Note: For synthesis we are still using direct client.chat.send 
+                        // because we might want different handling or just keep it simple.
+                        // Ideally checking if synthesis model supports reasoning would be good too,
+                        // but sticking to standard behavior for now.
                         let synthesizedContent = '';
                         const synthesisStream = await client.chat.send(
                             {
