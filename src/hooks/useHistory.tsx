@@ -36,7 +36,23 @@ export function useHistory() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
         } catch (error) {
-            console.error('Failed to save history:', error);
+            if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+                // Trim oldest items and retry
+                console.warn('localStorage quota exceeded, trimming history');
+                const trimmed = items.slice(0, Math.floor(items.length / 2));
+                try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+                    // Update state with trimmed items
+                    setHistory(trimmed);
+                } catch {
+                    // If still failing, clear history
+                    console.error('Failed to save history even after trimming, clearing');
+                    localStorage.removeItem(STORAGE_KEY);
+                    setHistory([]);
+                }
+            } else {
+                console.error('Failed to save history:', error);
+            }
         }
     };
 

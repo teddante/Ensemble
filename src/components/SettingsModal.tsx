@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Eye, EyeOff, ExternalLink } from 'lucide-react';
+import { X, Eye, EyeOff, ExternalLink, Loader2 } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
 import { Model } from '@/types';
 
@@ -15,23 +15,39 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
     const { settings, updateApiKey, updateRefinementModel } = useSettings();
     const [showApiKey, setShowApiKey] = useState(false);
     const [localApiKey, setLocalApiKey] = useState(settings.apiKey);
+    const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     // Sync local state when modal opens or settings change
     useEffect(() => {
         if (isOpen) {
             setLocalApiKey(settings.apiKey);
+            setError(null);
         }
     }, [isOpen, settings.apiKey]);
 
     if (!isOpen) return null;
 
-    const handleSave = () => {
-        updateApiKey(localApiKey);
-        onClose();
+    const handleSave = async () => {
+        setIsSaving(true);
+        setError(null);
+
+        try {
+            const result = await updateApiKey(localApiKey);
+            if (result.success) {
+                onClose();
+            } else {
+                setError(result.error || 'Failed to save API key');
+            }
+        } catch (err) {
+            setError('An unexpected error occurred');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (e.target === e.currentTarget) {
+        if (e.target === e.currentTarget && !isSaving) {
             onClose();
         }
     };
@@ -41,7 +57,7 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
             <div className="modal-content">
                 <div className="modal-header">
                     <h2>Settings</h2>
-                    <button className="modal-close" onClick={onClose} aria-label="Close">
+                    <button className="modal-close" onClick={onClose} aria-label="Close" disabled={isSaving}>
                         <X size={20} />
                     </button>
                 </div>
@@ -54,19 +70,29 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                                 id="api-key"
                                 type={showApiKey ? 'text' : 'password'}
                                 value={localApiKey}
-                                onChange={(e) => setLocalApiKey(e.target.value)}
+                                onChange={(e) => {
+                                    setLocalApiKey(e.target.value);
+                                    setError(null);
+                                }}
                                 placeholder="sk-or-..."
                                 className="api-key-input"
+                                disabled={isSaving}
                             />
                             <button
                                 type="button"
                                 className="toggle-visibility"
                                 onClick={() => setShowApiKey(!showApiKey)}
                                 aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                                disabled={isSaving}
                             >
                                 {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
                             </button>
                         </div>
+                        {error && (
+                            <p className="form-error" style={{ color: 'var(--accent-error)', marginTop: '0.5rem', fontSize: '0.875rem' }}>
+                                {error}
+                            </p>
+                        )}
                         <p className="form-help">
                             Get your API key from{' '}
                             <a
@@ -87,6 +113,7 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                             value={settings.refinementModel}
                             onChange={(e) => updateRefinementModel(e.target.value)}
                             className="select-input"
+                            disabled={isSaving}
                         >
                             {models.map((model) => (
                                 <option key={model.id} value={model.id}>
@@ -101,14 +128,22 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                 </div>
 
                 <div className="modal-footer">
-                    <button className="button-secondary" onClick={onClose}>
+                    <button className="button-secondary" onClick={onClose} disabled={isSaving}>
                         Cancel
                     </button>
-                    <button className="button-primary" onClick={handleSave}>
-                        Save Changes
+                    <button className="button-primary" onClick={handleSave} disabled={isSaving}>
+                        {isSaving ? (
+                            <>
+                                <Loader2 size={16} className="spin" />
+                                Saving...
+                            </>
+                        ) : (
+                            'Save Changes'
+                        )}
                     </button>
                 </div>
             </div>
         </div>
     );
 }
+

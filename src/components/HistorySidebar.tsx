@@ -1,5 +1,9 @@
+'use client';
+
+import { useState } from 'react';
 import { Trash2, RotateCcw, X, Clock } from 'lucide-react';
 import { HistoryItem } from '@/hooks/useHistory';
+import { ConfirmModal } from './ConfirmModal';
 
 interface HistorySidebarProps {
     isOpen: boolean;
@@ -11,6 +15,9 @@ interface HistorySidebarProps {
 }
 
 export function HistorySidebar({ isOpen, onClose, history, onLoad, onDelete, onClear }: HistorySidebarProps) {
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
     if (!isOpen) return null;
 
     const formatDate = (timestamp: number) => {
@@ -20,6 +27,18 @@ export function HistorySidebar({ isOpen, onClose, history, onLoad, onDelete, onC
             hour: '2-digit',
             minute: '2-digit'
         });
+    };
+
+    const handleClearConfirm = () => {
+        onClear();
+        setShowClearConfirm(false);
+    };
+
+    const handleDeleteConfirm = () => {
+        if (deleteConfirmId) {
+            onDelete(deleteConfirmId);
+            setDeleteConfirmId(null);
+        }
     };
 
     return (
@@ -58,7 +77,7 @@ export function HistorySidebar({ isOpen, onClose, history, onLoad, onDelete, onC
                                     className="history-delete"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        onDelete(item.id);
+                                        setDeleteConfirmId(item.id);
                                     }}
                                     aria-label="Delete item"
                                 >
@@ -71,16 +90,38 @@ export function HistorySidebar({ isOpen, onClose, history, onLoad, onDelete, onC
 
                 {history.length > 0 && (
                     <div className="history-footer">
-                        <button className="history-clear" onClick={() => {
-                            if (confirm('Are you sure you want to clear all history?')) {
-                                onClear();
-                            }
-                        }}>
+                        <button
+                            className="history-clear"
+                            onClick={() => setShowClearConfirm(true)}
+                        >
                             Clear All History
                         </button>
                     </div>
                 )}
             </div>
+
+            <ConfirmModal
+                isOpen={showClearConfirm}
+                title="Clear All History"
+                message="This will permanently delete all your conversation history. This action cannot be undone."
+                confirmText="Clear All"
+                cancelText="Keep History"
+                onConfirm={handleClearConfirm}
+                onCancel={() => setShowClearConfirm(false)}
+                variant="danger"
+            />
+
+            <ConfirmModal
+                isOpen={deleteConfirmId !== null}
+                title="Delete Item"
+                message="Are you sure you want to delete this history item?"
+                confirmText="Delete"
+                cancelText="Cancel"
+                onConfirm={handleDeleteConfirm}
+                onCancel={() => setDeleteConfirmId(null)}
+                variant="warning"
+            />
         </>
     );
 }
+

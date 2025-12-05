@@ -1,9 +1,11 @@
 import { NextRequest } from 'next/server';
-import { cookies } from 'next/headers';
 import { OpenRouter } from '@openrouter/sdk';
 import { validatePrompt, validateApiKey, validateModels } from '@/lib/validation';
 import { createSynthesisPrompt, streamModelResponse as libStreamModelResponse } from '@/lib/openrouter';
-import { StreamEvent } from '@/types';
+import { StreamEvent, ReasoningParams } from '@/types';
+import { generateRateLimiter, getClientIdentifier } from '@/lib/rateLimit';
+import { generationLock, getSessionIdentifier } from '@/lib/sessionLock';
+import { getApiKeyFromCookie } from '@/app/api/key/route';
 
 export const runtime = 'edge';
 
@@ -23,19 +25,42 @@ function sendEvent(controller: ReadableStreamDefaultController, event: StreamEve
     controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`));
 }
 
+// Sanitize error messages for production
+function sanitizeError(error: unknown): string {
+    if (process.env.NODE_ENV === 'development') {
+        return error instanceof Error ? error.message : 'Unknown error';
+    }
+
+    // In production, only return safe error messages
+    if (error instanceof Error) {
+        const safeMessages = [
+            'Request cancelled',
+            'API key is required',
+            'Invalid API key',
+            'Rate limit exceeded',
+            'Model not available',
+        ];
+
+        for (const safe of safeMessages) {
+            if (error.message.includes(safe)) {
+                return error.message;
+            }
+        }
+    }
+
+    return 'An error occurred while processing your request';
+}
+
 async function generateSingleModelResponse(
     model: string,
     prompt: string,
     apiKey: string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    reasoning: any,
+    reasoning: ReasoningParams | undefined,
     controller: ReadableStreamDefaultController,
     signal: AbortSignal
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): Promise<{ modelId: string; content: string; success: boolean; usage?: any }> {
+): Promise<{ modelId: string; content: string; success: boolean; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } }> {
     let fullContent = '';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let finalUsage: any;
+    let finalUsage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | undefined;
 
     sendEvent(controller, { type: 'model_start', modelId: model });
 
@@ -53,8 +78,6 @@ async function generateSingleModelResponse(
                 sendEvent(controller, { type: 'model_reasoning', modelId: model, reasoning: text });
             },
             onComplete: (content, usage) => {
-                // fullContent is already accumulated, but we can verify/update if needed. 
-                // usage is what we really want here.
                 finalUsage = usage;
             },
             onError: (error) => {
@@ -72,40 +95,69 @@ async function generateSingleModelResponse(
 
         return { modelId: model, content: fullContent, success: true, usage: finalUsage };
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorMessage = sanitizeError(error);
         sendEvent(controller, { type: 'model_error', modelId: model, error: errorMessage });
         return { modelId: model, content: '', success: false };
     }
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
+    const sessionId = getSessionIdentifier(request);
+
     try {
+        // Rate limiting
+        const clientId = getClientIdentifier(request);
+        const rateLimit = await generateRateLimiter.check(clientId);
+
+        if (!rateLimit.success) {
+            return Response.json(
+                { error: 'Too many requests. Please wait before trying again.' },
+                {
+                    status: 429,
+                    headers: { 'Retry-After': String(rateLimit.retryAfter || 60) }
+                }
+            );
+        }
+
+        // Session lock - prevent concurrent generation for same session
+        if (!generationLock.acquire(sessionId)) {
+            return Response.json(
+                { error: 'A generation is already in progress. Please wait for it to complete.' },
+                { status: 409 }
+            );
+        }
+
         const body = await request.json();
         const { prompt, models, refinementModel, reasoning } = body;
 
-        // Get API key from Cookie (primary) or Header/Body (fallback)
-        const cookieStore = await cookies();
-        const apiKey = cookieStore.get('ensemble_api_key')?.value ||
-            request.headers.get('authorization')?.replace('Bearer ', '') ||
-            body.apiKey;
+        // Get API key from Cookie (primary, decrypted) or Header/Body (fallback)
+        let apiKey: string | null = await getApiKeyFromCookie();
+
+        if (!apiKey) {
+            // Fallback to header/body for backwards compatibility
+            apiKey = request.headers.get('authorization')?.replace('Bearer ', '') ||
+                body.apiKey || null;
+        }
 
         // Validate inputs
         const promptValidation = validatePrompt(prompt);
         if (!promptValidation.isValid) {
+            generationLock.release(sessionId);
             return Response.json({ error: promptValidation.error }, { status: 400 });
         }
 
-        const apiKeyValidation = validateApiKey(apiKey);
+        const apiKeyValidation = validateApiKey(apiKey || '');
         if (!apiKeyValidation.isValid) {
+            generationLock.release(sessionId);
             return Response.json({ error: apiKeyValidation.error }, { status: 401 });
         }
 
         const modelsValidation = validateModels(models);
         if (!modelsValidation.isValid) {
+            generationLock.release(sessionId);
             return Response.json({ error: modelsValidation.error }, { status: 400 });
         }
 
-        // We use this client for synthesis only now
         // Get referer from request or use default
         const referer = request.headers.get('referer') ||
             request.headers.get('origin') ||
@@ -140,7 +192,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                     const results = await Promise.all(modelPromises);
 
                     // Filter successful responses for synthesis
-                    const successfulResponses = results.filter(r => r.success && r.content);
+                    const successfulResponses = results.filter((r: { success: boolean; content: string }) => r.success && r.content);
 
                     if (successfulResponses.length === 0) {
                         sendEvent(controller, {
@@ -148,6 +200,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                             error: 'All models failed to generate responses'
                         });
                         controller.close();
+                        generationLock.release(sessionId);
                         return;
                     }
 
@@ -161,10 +214,6 @@ export async function POST(request: NextRequest): Promise<Response> {
                             successfulResponses
                         );
 
-                        // Note: For synthesis we are still using direct client.chat.send 
-                        // because we might want different handling or just keep it simple.
-                        // Ideally checking if synthesis model supports reasoning would be good too,
-                        // but sticking to standard behavior for now.
                         let synthesizedContent = '';
                         const synthesisStream = await client.chat.send(
                             {
@@ -179,7 +228,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                             if ('error' in chunk && chunk.error) {
                                 sendEvent(controller, {
                                     type: 'error',
-                                    error: `Synthesis failed: ${chunk.error.message}`
+                                    error: `Synthesis failed: ${sanitizeError(new Error(chunk.error.message))}`
                                 });
                                 break;
                             }
@@ -196,28 +245,32 @@ export async function POST(request: NextRequest): Promise<Response> {
                             content: synthesizedContent
                         });
                     } catch (error) {
-                        const errorMessage = error instanceof Error ? error.message : 'Synthesis failed';
+                        const errorMessage = sanitizeError(error);
                         sendEvent(controller, { type: 'error', error: errorMessage });
                     }
 
                     sendEvent(controller, { type: 'complete' });
                     controller.close();
+                    generationLock.release(sessionId);
                 } catch (error) {
-                    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                    const errorMessage = sanitizeError(error);
                     sendEvent(controller, { type: 'error', error: errorMessage });
                     controller.close();
+                    generationLock.release(sessionId);
                 }
             },
             cancel() {
                 abortController.abort();
+                generationLock.release(sessionId);
             },
         });
 
         return createSSEResponse(stream);
     } catch (error) {
+        generationLock.release(sessionId);
         console.error('Generation error:', error);
         return Response.json(
-            { error: error instanceof Error ? error.message : 'Internal server error' },
+            { error: sanitizeError(error) },
             { status: 500 }
         );
     }

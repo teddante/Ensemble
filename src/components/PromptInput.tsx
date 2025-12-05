@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Loader2, X } from 'lucide-react';
 
 interface PromptInputProps {
@@ -13,7 +13,9 @@ interface PromptInputProps {
 
 export function PromptInput({ onSubmit, onCancel, isLoading, disabled, initialValue = '' }: PromptInputProps) {
     const [prompt, setPrompt] = useState(initialValue);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
     // Sync prompt with initialValue when it changes (e.g. loading from history)
     useEffect(() => {
@@ -31,12 +33,38 @@ export function PromptInput({ onSubmit, onCancel, isLoading, disabled, initialVa
         }
     }, [prompt]);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    // Cleanup debounce on unmount
+    useEffect(() => {
+        return () => {
+            if (debounceRef.current) {
+                clearTimeout(debounceRef.current);
+            }
+        };
+    }, []);
+
+    const handleSubmit = useCallback((e: React.FormEvent) => {
         e.preventDefault();
-        if (prompt.trim() && !isLoading && !disabled) {
-            onSubmit(prompt.trim());
+
+        // Prevent double-submit with debouncing
+        if (isSubmitting || isLoading || disabled || !prompt.trim()) {
+            return;
         }
-    };
+
+        setIsSubmitting(true);
+
+        // Clear any existing debounce
+        if (debounceRef.current) {
+            clearTimeout(debounceRef.current);
+        }
+
+        // Call onSubmit
+        onSubmit(prompt.trim());
+
+        // Reset submitting state after a short delay to prevent rapid clicks
+        debounceRef.current = setTimeout(() => {
+            setIsSubmitting(false);
+        }, 500);
+    }, [prompt, isLoading, disabled, isSubmitting, onSubmit]);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -51,7 +79,7 @@ export function PromptInput({ onSubmit, onCancel, isLoading, disabled, initialVa
         }
     };
 
-    const isDisabled = disabled || !prompt.trim();
+    const isDisabled = disabled || !prompt.trim() || isSubmitting;
 
     return (
         <form onSubmit={handleSubmit} className="prompt-form">
@@ -100,4 +128,5 @@ export function PromptInput({ onSubmit, onCancel, isLoading, disabled, initialVa
         </form>
     );
 }
+
 

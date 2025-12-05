@@ -79,7 +79,6 @@ export default function Home() {
     setResponses(initialResponses);
     setSynthesizedContent('');
     // Initialize ref for new generation
-    // Initialize ref for new generation
     generationStateRef.current = { responses: initialResponses, synthesizedContent: '' };
 
     // Create abort controller
@@ -90,7 +89,7 @@ export default function Home() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${settings.apiKey}`
+          'X-Requested-With': 'fetch',
         },
         body: JSON.stringify({
           prompt: newPrompt,
@@ -98,6 +97,7 @@ export default function Home() {
           refinementModel: settings.refinementModel,
         }),
         signal: abortControllerRef.current.signal,
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -136,6 +136,9 @@ export default function Home() {
           }
         }
       }
+
+      // Cleanup reader when done
+      await reader.cancel();
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         console.log('Request aborted');
@@ -148,7 +151,7 @@ export default function Home() {
       setIsSynthesizing(false);
       abortControllerRef.current = null;
     }
-  }, [hasApiKey, settings]); // Re-add dependencies cleanly
+  }, [hasApiKey, settings.selectedModels, settings.refinementModel]);
 
   const handleCancel = useCallback(() => {
     if (abortControllerRef.current) {

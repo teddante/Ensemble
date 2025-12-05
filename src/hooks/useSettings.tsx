@@ -5,10 +5,11 @@ import { Settings, DEFAULT_SELECTED_MODELS, DEFAULT_REFINEMENT_MODEL } from '@/t
 
 interface SettingsContextType {
     settings: Settings;
-    updateApiKey: (key: string) => void;
+    updateApiKey: (key: string) => Promise<{ success: boolean; error?: string }>;
     updateSelectedModels: (models: string[]) => void;
     updateRefinementModel: (model: string) => void;
     hasApiKey: boolean;
+    isCheckingKey: boolean;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -68,12 +69,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         refinementModel: DEFAULT_REFINEMENT_MODEL,
     });
     const [hasApiKey, setHasApiKey] = useState(false);
+    const [isCheckingKey, setIsCheckingKey] = useState(true);
     const [isHydrated, setIsHydrated] = useState(false);
 
     // Check if server has key
     const checkServerKey = async () => {
+        setIsCheckingKey(true);
         try {
-            const res = await fetch('/api/key');
+            const res = await fetch('/api/key', {
+                credentials: 'include',
+            });
             if (res.ok) {
                 const data = await res.json();
                 setHasApiKey(data.hasKey);
@@ -83,6 +88,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             }
         } catch (e) {
             console.error('Failed to check server key', e);
+        } finally {
+            setIsCheckingKey(false);
         }
     };
 
@@ -100,28 +107,51 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         }
     }, [settings, isHydrated]);
 
-    const updateApiKey = async (key: string) => {
+    const updateApiKey = async (key: string): Promise<{ success: boolean; error?: string }> => {
         if (!key) {
             // Delete key
-            await fetch('/api/key', { method: 'DELETE' });
-            setHasApiKey(false);
-            setSettings(prev => ({ ...prev, apiKey: '' }));
-            return;
+            try {
+                const res = await fetch('/api/key', {
+                    method: 'DELETE',
+                    headers: { 'X-Requested-With': 'fetch' },
+                    credentials: 'include',
+                });
+                if (res.ok) {
+                    setHasApiKey(false);
+                    setSettings(prev => ({ ...prev, apiKey: '' }));
+                    return { success: true };
+                } else {
+                    const data = await res.json();
+                    return { success: false, error: data.error || 'Failed to delete key' };
+                }
+            } catch (error) {
+                return { success: false, error: 'Network error' };
+            }
         }
 
         // Save key to server
-        const res = await fetch('/api/key', {
-            method: 'POST',
-            body: JSON.stringify({ apiKey: key }),
-            headers: { 'Content-Type': 'application/json' }
-        });
+        try {
+            const res = await fetch('/api/key', {
+                method: 'POST',
+                body: JSON.stringify({ apiKey: key }),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'fetch',
+                },
+                credentials: 'include',
+            });
 
-        if (res.ok) {
-            setHasApiKey(true);
-            setSettings(prev => ({ ...prev, apiKey: '********' }));
-        } else {
-            // Handle error if needed, but for now we trust validation was done before call or UI handles it
-            console.error('Failed to set key');
+            if (res.ok) {
+                setHasApiKey(true);
+                setSettings(prev => ({ ...prev, apiKey: '********' }));
+                return { success: true };
+            } else {
+                const data = await res.json();
+                return { success: false, error: data.error || 'Failed to save key' };
+            }
+        } catch (error) {
+            console.error('Failed to set key:', error);
+            return { success: false, error: 'Network error' };
         }
     };
 
@@ -141,6 +171,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 updateSelectedModels,
                 updateRefinementModel,
                 hasApiKey,
+                isCheckingKey,
             }}
         >
             {children}
@@ -155,3 +186,4 @@ export function useSettings(): SettingsContextType {
     }
     return context;
 }
+
