@@ -1,13 +1,14 @@
 'use client';
 
-import { Settings } from 'lucide-react';
+import { Settings, Clock } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
 
 interface HeaderProps {
     onOpenSettings: () => void;
+    onOpenHistory: () => void;
 }
 
-export function Header({ onOpenSettings }: HeaderProps) {
+export function Header({ onOpenSettings, onOpenHistory }: HeaderProps) {
     const { hasApiKey } = useSettings();
 
     return (
@@ -43,6 +44,14 @@ export function Header({ onOpenSettings }: HeaderProps) {
                             API key required
                         </span>
                     )}
+                    <button
+                        className="settings-button"
+                        onClick={onOpenHistory}
+                        aria-label="Open history"
+                    >
+                        <Clock size={20} />
+                        <span>History</span>
+                    </button>
                     <button
                         className="settings-button"
                         onClick={onOpenSettings}

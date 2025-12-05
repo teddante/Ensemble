@@ -11,16 +11,23 @@ import { useModels } from '@/hooks/useModels';
 import { useSettings } from '@/hooks/useSettings';
 import { ModelResponse, StreamEvent } from '@/types';
 
+import { useHistory, HistoryItem } from '@/hooks/useHistory';
+import { HistorySidebar } from '@/components/HistorySidebar';
+
 export default function Home() {
   const { settings, hasApiKey } = useSettings();
   const { models, isLoading: isLoadingModels } = useModels();
+  const { history, addToHistory, deleteItem, clearHistory } = useHistory();
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [responses, setResponses] = useState<ModelResponse[]>([]);
   const [synthesizedContent, setSynthesizedContent] = useState('');
-  const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const [prompt, setPrompt] = useState(''); // Need to track prompt for saving
   const [error, setError] = useState<string | null>(null);
+
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Show settings modal on first load if no API key
@@ -30,14 +37,13 @@ export default function Home() {
     }
   }, [hasApiKey]);
 
-  const handleGenerate = useCallback(async (prompt: string) => {
-    // ... (rest of handleGenerate is unchanged)
+  const handleGenerate = useCallback(async (newPrompt: string) => {
     if (!hasApiKey) {
       setIsSettingsOpen(true);
       return;
     }
 
-    // Reset state
+    setPrompt(newPrompt); // Track current prompt
     setIsGenerating(true);
     setError(null);
     setSynthesizedContent('');
@@ -62,7 +68,7 @@ export default function Home() {
           'Authorization': `Bearer ${settings.apiKey}`
         },
         body: JSON.stringify({
-          prompt,
+          prompt: newPrompt,
           models: settings.selectedModels,
           refinementModel: settings.refinementModel,
         }),
@@ -98,7 +104,7 @@ export default function Home() {
           if (eventData.startsWith('data: ')) {
             try {
               const event: StreamEvent = JSON.parse(eventData.slice(6));
-              handleStreamEvent(event);
+              handleStreamEvent(event, newPrompt); // Pass prompt for saving history
             } catch (e) {
               console.error('Failed to parse event:', e);
             }
@@ -126,7 +132,13 @@ export default function Home() {
     }
   }, []);
 
-  const handleStreamEvent = useCallback((event: StreamEvent) => {
+  // Use a ref to access latest state in callback without stale closure
+  const stateRef = useRef({ responses, synthesizedContent });
+  useEffect(() => {
+    stateRef.current = { responses, synthesizedContent };
+  }, [responses, synthesizedContent]);
+
+  const handleStreamEvent = useCallback((event: StreamEvent, originalPrompt: string) => {
     switch (event.type) {
       case 'model_start':
         setResponses(prev => prev.map(r =>
@@ -183,13 +195,42 @@ export default function Home() {
       case 'complete':
         setIsGenerating(false);
         setIsSynthesizing(false);
+
+        // Save to history using current state ref to avoid staleness issues 
+        // OR rely on the fact that by 'complete' event, other updates have fired.
+        // Actually, we need to pass the final state or use functional updates. 
+        // But addToHistory needs the FULL state.
+        // Let's use the ref we added.
+        addToHistory(
+          originalPrompt,
+          settings.selectedModels,
+          settings.refinementModel,
+          stateRef.current.responses,
+          stateRef.current.synthesizedContent
+        );
         break;
     }
-  }, []);
+  }, [addToHistory, settings]);
+
+  const handleLoadHistory = (item: HistoryItem) => {
+    // Restore state
+    setPrompt(item.prompt); // We might need to update the imput too
+    setResponses(item.responses);
+    setSynthesizedContent(item.synthesizedContent);
+    setIsGenerating(false);
+    setIsSynthesizing(false);
+    setError(null);
+
+    // Close sidebar
+    setIsHistoryOpen(false);
+  };
 
   return (
     <div className="app-container">
-      <Header onOpenSettings={() => setIsSettingsOpen(true)} />
+      <Header
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenHistory={() => setIsHistoryOpen(true)}
+      />
 
       <main className="main-content">
         <PromptInput
@@ -197,6 +238,7 @@ export default function Home() {
           onCancel={handleCancel}
           isLoading={isGenerating}
           disabled={!hasApiKey}
+          initialValue={prompt} // Assuming PromptInput can accept this to sync
         />
 
         <ModelSelector models={models} isLoading={isLoadingModels} />
@@ -207,11 +249,14 @@ export default function Home() {
           </div>
         )}
 
-        <SynthesizedResponse
-          content={synthesizedContent}
-          isStreaming={isSynthesizing}
-          isGenerating={isGenerating}
-        />
+        {/* Show synthesis if there is content OR if we are generating */}
+        {(synthesizedContent || isGenerating) && (
+          <SynthesizedResponse
+            content={synthesizedContent}
+            isStreaming={isSynthesizing}
+            isGenerating={isGenerating}
+          />
+        )}
 
         <ResponsePanel responses={responses} models={models} />
       </main>
@@ -220,6 +265,15 @@ export default function Home() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         models={models}
+      />
+
+      <HistorySidebar
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        history={history}
+        onLoad={handleLoadHistory}
+        onDelete={deleteItem}
+        onClear={clearHistory}
       />
     </div>
   );

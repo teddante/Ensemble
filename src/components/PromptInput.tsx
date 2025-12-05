@@ -8,11 +8,19 @@ interface PromptInputProps {
     onCancel?: () => void;
     isLoading: boolean;
     disabled: boolean;
+    initialValue?: string;
 }
 
-export function PromptInput({ onSubmit, onCancel, isLoading, disabled }: PromptInputProps) {
-    const [prompt, setPrompt] = useState('');
+export function PromptInput({ onSubmit, onCancel, isLoading, disabled, initialValue = '' }: PromptInputProps) {
+    const [prompt, setPrompt] = useState(initialValue);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Sync prompt with initialValue when it changes (e.g. loading from history)
+    useEffect(() => {
+        if (initialValue) {
+            setPrompt(initialValue);
+        }
+    }, [initialValue]);
 
     // Auto-resize textarea
     useEffect(() => {
