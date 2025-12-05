@@ -55,6 +55,7 @@ export class RateLimiter {
         this.cleanupIntervalMs = 60000; // Cleanup every minute
 
         // Periodic cleanup of expired buckets
+        // Note: In Edge runtime, this is fine as instances are short-lived
         if (typeof setInterval !== 'undefined') {
             this.cleanupIntervalId = setInterval(() => this.cleanup(), this.cleanupIntervalMs);
         }
@@ -130,6 +131,10 @@ export const keyRateLimiter = new RateLimiter(5, 1 / 12);
 
 // Models list: 20 requests per minute
 export const modelsRateLimiter = new RateLimiter(20, 1 / 3);
+
+// Note: In Edge runtime, instances are short-lived per request
+// The unref'd intervals don't block process exit
+// For Node.js environments, you may want to call destroy() on graceful shutdown
 
 // Helper to get client identifier from request
 export function getClientIdentifier(request: Request): string {

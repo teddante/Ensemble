@@ -9,6 +9,7 @@ import { PromptInput } from '@/components/PromptInput';
 import { ModelSelector } from '@/components/ModelSelector';
 import { ResponsePanel } from '@/components/ResponsePanel';
 import { SynthesizedResponse } from '@/components/SynthesizedResponse';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useModels } from '@/hooks/useModels';
 import { useSettings } from '@/hooks/useSettings';
 import { ModelResponse, StreamEvent } from '@/types';
@@ -341,15 +342,19 @@ export default function Home() {
 
         {/* Show synthesis if there is content OR if we are generating */}
         {(synthesizedContent || isGenerating) && (
-          <SynthesizedResponse
-            content={synthesizedContent}
-            isStreaming={isSynthesizing}
-            isGenerating={isGenerating}
-            truncatedModels={truncatedModels}
-          />
+          <ErrorBoundary>
+            <SynthesizedResponse
+              content={synthesizedContent}
+              isStreaming={isSynthesizing}
+              isGenerating={isGenerating}
+              truncatedModels={truncatedModels}
+            />
+          </ErrorBoundary>
         )}
 
-        <ResponsePanel responses={responses} models={models} />
+        <ErrorBoundary>
+          <ResponsePanel responses={responses} models={models} />
+        </ErrorBoundary>
       </main>
 
       <SettingsModal

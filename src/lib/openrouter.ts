@@ -283,3 +283,69 @@ export function estimateTokens(text: string): number {
     return Math.ceil(Math.max(wordEstimate, charEstimate) + specialEstimate);
 }
 
+export interface SynthesisValidationResult {
+    isValid: boolean;
+    estimatedTokens: number;
+    maxTokens: number;
+    warning?: string;
+}
+
+/**
+ * Validates that the synthesis prompt will fit within the model's context window
+ * @param responses - The model responses to be synthesized
+ * @param originalPrompt - The original user prompt
+ * @param synthesisModelContextLimit - Context window limit of the synthesis model (default 32k)
+ * @returns Validation result with token estimates
+ */
+export function validateSynthesisContext(
+    responses: { modelId: string; content: string }[],
+    originalPrompt: string,
+    synthesisModelContextLimit: number = 32000
+): SynthesisValidationResult {
+    // Estimate tokens for original prompt
+    const promptTokens = estimateTokens(originalPrompt);
+
+    // Estimate tokens for each response (after truncation)
+    let responseTokens = 0;
+    for (const response of responses) {
+        const content = response.content.length > MAX_SYNTHESIS_CHARS
+            ? response.content.slice(0, MAX_SYNTHESIS_CHARS)
+            : response.content;
+        responseTokens += estimateTokens(content);
+    }
+
+    // Add overhead for synthesis prompt template (~500 tokens)
+    const templateOverhead = 500;
+
+    // Reserve tokens for the model's response (~4000 tokens minimum)
+    const responseReserve = 4000;
+
+    const totalEstimatedTokens = promptTokens + responseTokens + templateOverhead;
+    const maxInputTokens = synthesisModelContextLimit - responseReserve;
+
+    if (totalEstimatedTokens > maxInputTokens) {
+        return {
+            isValid: false,
+            estimatedTokens: totalEstimatedTokens,
+            maxTokens: maxInputTokens,
+            warning: `Synthesis prompt (~${totalEstimatedTokens} tokens) may exceed context limit (${maxInputTokens} tokens available). Some responses may need to be truncated further.`
+        };
+    }
+
+    if (totalEstimatedTokens > maxInputTokens * 0.8) {
+        return {
+            isValid: true,
+            estimatedTokens: totalEstimatedTokens,
+            maxTokens: maxInputTokens,
+            warning: `Synthesis prompt is using ${Math.round(totalEstimatedTokens / maxInputTokens * 100)}% of available context.`
+        };
+    }
+
+    return {
+        isValid: true,
+        estimatedTokens: totalEstimatedTokens,
+        maxTokens: maxInputTokens
+    };
+}
+
+

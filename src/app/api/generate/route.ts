@@ -1,12 +1,13 @@
 import { NextRequest } from 'next/server';
 import { OpenRouter } from '@openrouter/sdk';
 import { validatePrompt, validateApiKey, validateModels } from '@/lib/validation';
-import { createSynthesisPrompt, streamModelResponse as libStreamModelResponse } from '@/lib/openrouter';
+import { createSynthesisPrompt, streamModelResponse as libStreamModelResponse, validateSynthesisContext } from '@/lib/openrouter';
 import { StreamEvent, ReasoningParams } from '@/types';
 import { generateRateLimiter, getClientIdentifier } from '@/lib/rateLimit';
 import { generationLock, getSessionIdentifier } from '@/lib/sessionLock';
 import { getApiKeyFromCookie } from '@/app/api/key/route';
-import { MAX_REQUEST_BODY_SIZE } from '@/lib/constants';
+import { MAX_REQUEST_BODY_SIZE, REQUEST_TIMEOUT_MS } from '@/lib/constants';
+import { logger, generateRequestId } from '@/lib/logger';
 
 export const runtime = 'edge';
 
@@ -104,6 +105,9 @@ async function generateSingleModelResponse(
 
 export async function POST(request: NextRequest): Promise<Response> {
     const sessionId = getSessionIdentifier(request);
+    const requestId = generateRequestId();
+
+    logger.info('Generation request started', { requestId, sessionId });
 
     try {
         // Rate limiting
@@ -111,6 +115,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         const rateLimit = await generateRateLimiter.check(clientId);
 
         if (!rateLimit.success) {
+            logger.warn('Rate limit exceeded', { requestId, clientId });
             return Response.json(
                 { error: 'Too many requests. Please wait before trying again.' },
                 {
@@ -122,6 +127,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
         // Session lock - prevent concurrent generation for same session
         if (!generationLock.acquire(sessionId)) {
+            logger.warn('Concurrent generation blocked', { requestId, sessionId });
             return Response.json(
                 { error: 'A generation is already in progress. Please wait for it to complete.' },
                 { status: 409 }
@@ -222,10 +228,31 @@ export async function POST(request: NextRequest): Promise<Response> {
                     sendEvent(controller, { type: 'synthesis_start', modelId: synthesisModel });
 
                     try {
+                        // Validate synthesis context before proceeding
+                        const contextValidation = validateSynthesisContext(
+                            successfulResponses,
+                            promptValidation.sanitized!
+                        );
+
+                        if (contextValidation.warning) {
+                            logger.warn('Synthesis context warning', {
+                                requestId,
+                                warning: contextValidation.warning,
+                                estimatedTokens: contextValidation.estimatedTokens
+                            });
+                        }
+
                         const synthesisPrompt = createSynthesisPrompt(
                             promptValidation.sanitized!,
                             successfulResponses
                         );
+
+                        // Create timeout signal for synthesis
+                        const synthesisTimeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+                        const synthesisSignal = AbortSignal.any([
+                            abortController.signal,
+                            synthesisTimeoutSignal
+                        ]);
 
                         let synthesizedContent = '';
                         const synthesisStream = await client.chat.send(
@@ -234,7 +261,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                                 messages: [{ role: 'user', content: synthesisPrompt }],
                                 stream: true,
                             },
-                            { signal: abortController.signal }
+                            { signal: synthesisSignal }
                         );
 
                         for await (const chunk of synthesisStream) {

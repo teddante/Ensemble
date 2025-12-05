@@ -13,6 +13,7 @@ export interface HistoryItem {
     refinementModel: string;
     responses: ModelResponse[];
     synthesizedContent: string;
+    modelNames?: Record<string, string>; // Map of model IDs to display names
 }
 
 const STORAGE_KEY = 'ensemble_history';
@@ -101,12 +102,24 @@ export function useHistory() {
         return [];
     }, [checkStorageUsage]);
 
+    // Use effect to save history to localStorage whenever it changes
+    // This avoids race conditions from calling saveToLocalStorage inside setState
+    const [pendingSave, setPendingSave] = useState(false);
+
+    useEffect(() => {
+        if (pendingSave && history.length >= 0) {
+            saveToLocalStorage(history);
+            setPendingSave(false);
+        }
+    }, [history, pendingSave, saveToLocalStorage]);
+
     const addToHistory = useCallback((
         prompt: string,
         models: string[],
         refinementModel: string,
         responses: ModelResponse[],
-        synthesizedContent: string
+        synthesizedContent: string,
+        modelNames?: Record<string, string> // Optional: map of model IDs to names
     ) => {
         const newItem: HistoryItem = {
             id: uuidv4(),
@@ -115,23 +128,18 @@ export function useHistory() {
             models,
             refinementModel,
             responses,
-            synthesizedContent
+            synthesizedContent,
+            modelNames // Store model names for display when models change
         };
 
-        setHistory(prev => {
-            const newHistory = [newItem, ...prev].slice(0, MAX_HISTORY_ITEMS);
-            const saved = saveToLocalStorage(newHistory);
-            return saved;
-        });
-    }, [saveToLocalStorage]);
+        setHistory(prev => [newItem, ...prev].slice(0, MAX_HISTORY_ITEMS));
+        setPendingSave(true);
+    }, []);
 
     const deleteItem = useCallback((id: string) => {
-        setHistory(prev => {
-            const newHistory = prev.filter(item => item.id !== id);
-            saveToLocalStorage(newHistory);
-            return newHistory;
-        });
-    }, [saveToLocalStorage]);
+        setHistory(prev => prev.filter(item => item.id !== id));
+        setPendingSave(true);
+    }, []);
 
     const clearHistory = useCallback(() => {
         setHistory([]);

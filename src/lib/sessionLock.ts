@@ -56,6 +56,7 @@ export class SessionLockManager {
         this.defaultDuration = defaultDurationMs;
 
         // Periodic cleanup of expired locks
+        // Note: In Edge runtime, this is fine as instances are short-lived
         if (typeof setInterval !== 'undefined') {
             this.cleanupIntervalId = setInterval(() => this.cleanup(), 30000); // Every 30 seconds
         }
@@ -141,6 +142,10 @@ export class SessionLockManager {
 
 // Global session lock manager for generation requests
 export const generationLock = new SessionLockManager();
+
+// Note: In Edge runtime, instances are short-lived per request
+// The unref'd intervals don't block process exit
+// For Node.js environments, you may want to call destroy() on graceful shutdown
 
 // Helper to get session identifier from request
 export function getSessionIdentifier(request: Request): string {
