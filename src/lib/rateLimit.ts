@@ -46,17 +46,30 @@ export class RateLimiter {
     private buckets: Map<string, Bucket> = new Map();
     private maxTokens: number;
     private refillRate: number; // tokens per second
-    private cleanupInterval: number;
+    private cleanupIntervalMs: number;
+    private cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
 
     constructor(maxTokens = 10, refillRate = 1) {
         this.maxTokens = maxTokens;
         this.refillRate = refillRate;
-        this.cleanupInterval = 60000; // Cleanup every minute
+        this.cleanupIntervalMs = 60000; // Cleanup every minute
 
         // Periodic cleanup of expired buckets
         if (typeof setInterval !== 'undefined') {
-            setInterval(() => this.cleanup(), this.cleanupInterval);
+            this.cleanupIntervalId = setInterval(() => this.cleanup(), this.cleanupIntervalMs);
         }
+    }
+
+    /**
+     * Destroy the rate limiter and clear cleanup interval
+     * Call this when shutting down the server gracefully
+     */
+    destroy(): void {
+        if (this.cleanupIntervalId) {
+            clearInterval(this.cleanupIntervalId);
+            this.cleanupIntervalId = null;
+        }
+        this.buckets.clear();
     }
 
     private cleanup(): void {

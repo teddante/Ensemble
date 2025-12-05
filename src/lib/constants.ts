@@ -25,6 +25,7 @@ export const MODELS_RATE_LIMIT = 20; // requests per minute
 // Retry Logic
 export const MAX_RETRIES = 3;
 export const INITIAL_RETRY_DELAY_MS = 1000;
+export const REQUEST_TIMEOUT_MS = 25000; // 25s timeout (under Vercel's 30s Edge limit)
 
 // Encryption
 export const ENCRYPTION_MAGIC_PREFIX = 'ENS:';

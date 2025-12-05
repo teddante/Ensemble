@@ -45,8 +45,17 @@ export async function GET(request: NextRequest) {
     }
 
     try {
+        // Use server key if available, otherwise try user's cookie key
+        let apiKey = process.env.OPENROUTER_API_KEY;
+
+        if (!apiKey) {
+            // Fallback to user's cookie key for model listing
+            const { getApiKeyFromCookie } = await import('@/app/api/key/route');
+            apiKey = await getApiKeyFromCookie() || '';
+        }
+
         const client = new OpenRouter({
-            apiKey: process.env.OPENROUTER_API_KEY || '',
+            apiKey,
             httpReferer: process.env.NEXT_PUBLIC_APP_URL || 'https://ensemble.app',
             xTitle: 'Ensemble Multi-LLM',
         });

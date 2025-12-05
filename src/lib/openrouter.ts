@@ -2,7 +2,7 @@
 import { OpenRouter } from '@openrouter/sdk';
 import { ReasoningParams } from '@/types';
 import { OpenRouterUsage, OpenRouterDelta } from '@/types/openrouter.types';
-import { MAX_SYNTHESIS_CHARS, MAX_RETRIES, INITIAL_RETRY_DELAY_MS } from '@/lib/constants';
+import { MAX_SYNTHESIS_CHARS, MAX_RETRIES, INITIAL_RETRY_DELAY_MS, REQUEST_TIMEOUT_MS } from '@/lib/constants';
 
 // Re-export for backward compatibility
 export { MAX_SYNTHESIS_CHARS };
@@ -71,6 +71,13 @@ export async function streamModelResponse({
 }: StreamOptions): Promise<void> {
     const client = createOpenRouterClient(apiKey);
 
+    // Create a combined signal with timeout
+    // AbortSignal.any() is available in modern runtimes (Node 20+, Edge)
+    const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+    const combinedSignal = signal
+        ? AbortSignal.any([signal, timeoutSignal])
+        : timeoutSignal;
+
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -92,7 +99,7 @@ export async function streamModelResponse({
                     stream: true,
                     streamOptions: { includeUsage: true }
                 },
-                { signal }
+                { signal: combinedSignal }
             );
 
             for await (const chunk of stream) {
@@ -162,6 +169,11 @@ export async function streamModelResponse({
             }
         } catch (error) {
             if (error instanceof Error) {
+                // Check if timeout vs user cancellation
+                if (error.name === 'TimeoutError' || error.message.includes('timeout')) {
+                    onError('Request timed out - the model took too long to respond');
+                    return;
+                }
                 if (error.name === 'AbortError') {
                     onError('Request cancelled');
                     return;

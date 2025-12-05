@@ -50,14 +50,27 @@ interface LockEntry {
 export class SessionLockManager {
     private locks: Map<string, LockEntry> = new Map();
     private defaultDuration: number;
+    private cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
 
     constructor(defaultDurationMs = 5 * 60 * 1000) { // 5 minute default
         this.defaultDuration = defaultDurationMs;
 
         // Periodic cleanup of expired locks
         if (typeof setInterval !== 'undefined') {
-            setInterval(() => this.cleanup(), 30000); // Every 30 seconds
+            this.cleanupIntervalId = setInterval(() => this.cleanup(), 30000); // Every 30 seconds
         }
+    }
+
+    /**
+     * Destroy the lock manager and clear cleanup interval
+     * Call this when shutting down the server gracefully
+     */
+    destroy(): void {
+        if (this.cleanupIntervalId) {
+            clearInterval(this.cleanupIntervalId);
+            this.cleanupIntervalId = null;
+        }
+        this.locks.clear();
     }
 
     private cleanup(): void {
