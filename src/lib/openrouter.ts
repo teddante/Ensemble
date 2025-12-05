@@ -120,8 +120,28 @@ export async function streamModelResponse({
                 }
 
                 // Handle reasoning/thinking tokens
+                // Supports both legacy format and new structured reasoning_details array
                 const delta = chunk.choices?.[0]?.delta as OpenRouterDelta | undefined;
-                const reasoningContent = delta?.reasoning || delta?.reasoning_details?.text || null;
+
+                // Extract reasoning from structured reasoning_details array (new format per OpenRouter docs)
+                let reasoningContent: string | null = null;
+                if (delta?.reasoning_details && Array.isArray(delta.reasoning_details)) {
+                    for (const detail of delta.reasoning_details) {
+                        if (detail.type === 'reasoning.text' && 'text' in detail) {
+                            reasoningContent = detail.text;
+                            break;
+                        } else if (detail.type === 'reasoning.summary' && 'summary' in detail) {
+                            reasoningContent = detail.summary;
+                            break;
+                        }
+                        // Note: reasoning.encrypted type contains 'data' field but is redacted
+                    }
+                }
+
+                // Fall back to legacy reasoning field for backward compatibility
+                if (!reasoningContent && delta?.reasoning) {
+                    reasoningContent = delta.reasoning;
+                }
 
                 if (reasoningContent && onReasoning) {
                     onReasoning(reasoningContent);

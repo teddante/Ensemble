@@ -43,6 +43,7 @@ yarn-error.log*
 .idea/
 *.swp
 *.swo
+agents/
 
 # OS
 Thumbs.db

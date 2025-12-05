@@ -62,6 +62,10 @@ export async function GET(request: NextRequest) {
             provider: m.id.split('/')[0],
             description: m.description || '',
             contextWindow: m.context_length,
+            // Extended fields from OpenRouter docs
+            canonical_slug: m.canonical_slug,
+            created: m.created,
+            supported_parameters: m.supported_parameters,
             pricing: m.pricing,
             architecture: m.architecture,
             top_provider: m.top_provider,

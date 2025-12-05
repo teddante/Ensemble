@@ -6,9 +6,19 @@ export interface Model {
     provider: string;
     description: string;
     contextWindow?: number;
+    // Extended fields from OpenRouter docs
+    canonical_slug?: string;
+    created?: number;
+    supported_parameters?: string[];
     pricing?: {
         prompt: string;
         completion: string;
+        request?: string;
+        image?: string;
+        web_search?: string;
+        internal_reasoning?: string;
+        input_cache_read?: string;
+        input_cache_write?: string;
     };
     architecture?: {
         input_modalities: string[];
