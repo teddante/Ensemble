@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { SettingsProvider } from "@/hooks/useSettings";
+import { validateEnvironmentSafe } from "@/lib/envValidation";
+
+// Validate environment on server startup
+validateEnvironmentSafe();
 
 const inter = Inter({
   subsets: ["latin"],

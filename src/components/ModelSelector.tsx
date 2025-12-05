@@ -92,7 +92,7 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
     }
 
     return (
-        <div className="model-selector">
+        <div className="model-selector" role="region" aria-label="Model selection">
             <div className="model-selector-header">
                 <h3>Select Models</h3>
                 <span className="model-count">
@@ -126,6 +126,8 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
                                     onClick={() => toggleModel(model.id)}
                                     className="model-chip selected"
                                     title={model.description}
+                                    aria-label={`Deselect ${model.name} from ${model.provider}`}
+                                    aria-pressed={true}
                                 >
                                     <Check size={14} />
                                     <span className="model-name">{model.name}</span>
@@ -169,6 +171,8 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
                                                 onClick={() => toggleModel(model.id)}
                                                 className={`model-chip ${isSelected ? 'selected' : ''}`}
                                                 title={model.description}
+                                                aria-label={`${isSelected ? 'Deselect' : 'Select'} ${model.name}`}
+                                                aria-pressed={isSelected}
                                             >
                                                 {isSelected && <Check size={14} />}
                                                 <span className="model-name">{model.name}</span>

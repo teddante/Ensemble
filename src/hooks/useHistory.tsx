@@ -33,9 +33,43 @@ export function useHistory() {
         }
     }, []);
 
+    // Estimate size of data in bytes
+    const estimateSize = useCallback((data: unknown): number => {
+        try {
+            return new Blob([JSON.stringify(data)]).size;
+        } catch {
+            return JSON.stringify(data).length * 2; // Fallback: UTF-16 estimate
+        }
+    }, []);
+
+    // Check localStorage usage percentage
+    const checkStorageUsage = useCallback((): number => {
+        try {
+            let totalSize = 0;
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key) {
+                    totalSize += localStorage.getItem(key)?.length || 0;
+                }
+            }
+            // localStorage limit is typically 5MB (5 * 1024 * 1024 bytes)
+            const limit = 5 * 1024 * 1024;
+            return (totalSize * 2) / limit; // *2 for UTF-16
+        } catch {
+            return 0;
+        }
+    }, []);
+
     const saveToLocalStorage = useCallback((items: HistoryItem[]) => {
         let itemsToSave = items;
         let evictedCount = 0;
+
+        // Proactive check: warn if approaching quota (80% threshold)
+        const usage = checkStorageUsage();
+        if (usage > 0.8 && usage < 1) {
+            setStorageWarning(`Storage ${Math.round(usage * 100)}% full - older history items may be removed`);
+            setTimeout(() => setStorageWarning(null), 5000);
+        }
 
         // Try to save with progressive eviction
         while (itemsToSave.length > 0) {
@@ -65,7 +99,7 @@ export function useHistory() {
         localStorage.removeItem(STORAGE_KEY);
         setStorageWarning('History cleared due to storage limits');
         return [];
-    }, []);
+    }, [checkStorageUsage]);
 
     const addToHistory = useCallback((
         prompt: string,

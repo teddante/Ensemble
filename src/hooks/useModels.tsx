@@ -72,7 +72,9 @@ export function useModels() {
 
         for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
             try {
-                const response = await fetch('/api/models');
+                const response = await fetch('/api/models', {
+                    headers: { 'X-Requested-With': 'fetch' }
+                });
                 if (!response.ok) throw new Error('Failed to fetch models');
 
                 const data = await response.json();

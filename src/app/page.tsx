@@ -178,8 +178,8 @@ export default function Home() {
         setIsSettingsOpen(true);
       }
 
-      // Ctrl/Cmd + h - Open history
-      if (modKey && e.key === 'h' && !e.shiftKey) {
+      // Ctrl/Cmd + Shift + H - Open history (Shift added to avoid browser conflict)
+      if (modKey && e.key === 'h' && e.shiftKey) {
         e.preventDefault();
         setIsHistoryOpen(prev => !prev);
       }

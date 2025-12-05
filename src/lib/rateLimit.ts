@@ -1,6 +1,39 @@
-// Simple token bucket rate limiter for Edge runtime
-// Uses in-memory storage - suitable for single-instance deployments
-// TODO: For production with multiple instances, use Redis/Upstash for distributed rate limiting
+/**
+ * Token Bucket Rate Limiter for Edge Runtime
+ * 
+ * IMPORTANT: SCALABILITY LIMITATIONS
+ * ===================================
+ * This implementation uses in-memory storage (Map) which has the following limitations:
+ * 
+ * 1. NOT DURABLE: Rate limit state is lost on server restart
+ * 2. NOT DISTRIBUTED: Each Edge Function instance has its own Map
+ * 3. INEFFECTIVE in multi-instance deployments (Vercel, Cloudflare Workers, etc.)
+ * 
+ * For production with multiple instances, migrate to a distributed solution.
+ * 
+ * RECOMMENDED: Upstash Redis Rate Limiting
+ * =========================================
+ * 1. Install: npm install @upstash/ratelimit @upstash/redis
+ * 2. Create Upstash Redis database at https://upstash.com
+ * 3. Add env vars: UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
+ * 4. Replace this implementation with:
+ * 
+ *    import { Ratelimit } from "@upstash/ratelimit";
+ *    import { Redis } from "@upstash/redis";
+ *    
+ *    const redis = new Redis({
+ *      url: process.env.UPSTASH_REDIS_REST_URL!,
+ *      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+ *    });
+ *    
+ *    export const generateRateLimiter = new Ratelimit({
+ *      redis,
+ *      limiter: Ratelimit.slidingWindow(10, "1 m"),
+ *      analytics: true,
+ *    });
+ * 
+ * The Upstash Ratelimit API is similar to this implementation's check() method.
+ */
 
 import { hashString } from './utils';
 

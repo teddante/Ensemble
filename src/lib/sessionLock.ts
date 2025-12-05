@@ -1,6 +1,44 @@
-// Session lock manager for preventing concurrent generation requests
-// Uses in-memory storage - suitable for single-instance deployments
-// TODO: For production with multiple instances, use Redis/Upstash for distributed locking
+/**
+ * Session Lock Manager for Preventing Concurrent Generation Requests
+ * 
+ * IMPORTANT: SCALABILITY LIMITATIONS
+ * ===================================
+ * This implementation uses in-memory storage (Map) which has the following limitations:
+ * 
+ * 1. NOT DURABLE: Lock state is lost on server restart
+ * 2. NOT DISTRIBUTED: Each Edge Function instance has its own Map
+ * 3. INEFFECTIVE in multi-instance deployments (Vercel, Cloudflare Workers, etc.)
+ * 
+ * For production with multiple instances, migrate to a distributed locking solution.
+ * 
+ * RECOMMENDED: Upstash Redis Distributed Locking
+ * ===============================================
+ * 1. Install: npm install @upstash/redis
+ * 2. Create Upstash Redis database at https://upstash.com
+ * 3. Add env vars: UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
+ * 4. Replace this implementation with Redis SET NX pattern:
+ * 
+ *    import { Redis } from "@upstash/redis";
+ *    
+ *    const redis = new Redis({
+ *      url: process.env.UPSTASH_REDIS_REST_URL!,
+ *      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+ *    });
+ *    
+ *    export async function acquire(sessionId: string, durationMs = 300000): Promise<boolean> {
+ *      const result = await redis.set(`lock:${sessionId}`, "1", {
+ *        nx: true, // Only set if not exists
+ *        px: durationMs, // Expiry in milliseconds
+ *      });
+ *      return result === "OK";
+ *    }
+ *    
+ *    export async function release(sessionId: string): Promise<void> {
+ *      await redis.del(`lock:${sessionId}`);
+ *    }
+ * 
+ * This provides atomic, distributed locking across all instances.
+ */
 
 import { hashString } from './utils';
 
