@@ -65,6 +65,7 @@ export function PromptInput({ onSubmit, onCancel, isLoading, disabled, initialVa
                     className="prompt-textarea"
                     disabled={isLoading}
                     rows={1}
+                    aria-label="Prompt input"
                 />
                 <div className="prompt-actions">
                     <span className="char-count">{prompt.length.toLocaleString()} chars</span>

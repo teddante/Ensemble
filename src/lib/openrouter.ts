@@ -115,8 +115,18 @@ Here are the responses from different models:
 `;
 
     validResponses.forEach((response, index) => {
+        // Truncate response if it's too long to prevent excessive context usage
+        // 8000 chars is roughly 2000 tokens, which is a reasonable contribution per model
+        // for a synthesis task without blowing up the context window of the synthesizer.
+        const MAX_CHARS_PER_RESPONSE = 8000;
+        let content = response.content;
+
+        if (content.length > MAX_CHARS_PER_RESPONSE) {
+            content = content.slice(0, MAX_CHARS_PER_RESPONSE) + '\n\n[...Truncated for synthesis...]';
+        }
+
         synthesisPrompt += `--- Response ${index + 1} (from ${response.modelId}) ---
-${response.content}
+${content}
 
 `;
     });

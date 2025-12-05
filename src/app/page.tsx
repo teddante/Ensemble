@@ -49,6 +49,23 @@ export default function Home() {
     setSynthesizedContent('');
     setIsSynthesizing(false);
 
+    // Check for context window limits
+    const approxTokens = Math.ceil(newPrompt.length / 4);
+    const contextErrors: string[] = [];
+
+    settings.selectedModels.forEach(modelId => {
+      const model = models.find(m => m.id === modelId);
+      if (model && model.contextWindow && approxTokens > model.contextWindow) {
+        contextErrors.push(`${model.name} (Limit: ${model.contextWindow.toLocaleString()})`);
+      }
+    });
+
+    if (contextErrors.length > 0) {
+      setError(`Prompt is too long for the following models: ${contextErrors.join(', ')}. Approximate tokens: ${approxTokens.toLocaleString()}`);
+      setIsGenerating(false);
+      return;
+    }
+
     // Initialize response objects for each model
     const initialResponses: ModelResponse[] = settings.selectedModels.map(modelId => ({
       modelId,
@@ -56,6 +73,9 @@ export default function Home() {
       status: 'pending',
     }));
     setResponses(initialResponses);
+    setSynthesizedContent('');
+    // Initialize ref for new generation
+    generationStateRef.current = { responses: initialResponses, synthesizedContent: '' };
 
     // Create abort controller
     abortControllerRef.current = new AbortController();
@@ -132,16 +152,38 @@ export default function Home() {
     }
   }, []);
 
-  // Use a ref to access latest state in callback without stale closure
-  const stateRef = useRef({ responses, synthesizedContent });
-  useEffect(() => {
-    stateRef.current = { responses, synthesizedContent };
-  }, [responses, synthesizedContent]);
+  // Use a ref to store authoritative state for history saving (fixes race condition)
+  const generationStateRef = useRef<{
+    responses: ModelResponse[];
+    synthesizedContent: string;
+  }>({ responses: [], synthesizedContent: '' });
 
   const handleStreamEvent = useCallback((event: StreamEvent, originalPrompt: string) => {
+    // Helper to update both ref and state
+    const updateState = (
+      newResponses: ModelResponse[] | ((prev: ModelResponse[]) => ModelResponse[]),
+      newSynthesis?: string | ((prev: string) => string)
+    ) => {
+      setResponses(prevResponses => {
+        const updatedResponses = typeof newResponses === 'function' ? newResponses(prevResponses) : newResponses;
+        // Update ref with new responses
+        generationStateRef.current.responses = updatedResponses;
+        return updatedResponses;
+      });
+
+      if (newSynthesis !== undefined) {
+        setSynthesizedContent(prevSynth => {
+          const updatedSynth = typeof newSynthesis === 'function' ? newSynthesis(prevSynth) : newSynthesis;
+          // Update ref with new synthesis
+          generationStateRef.current.synthesizedContent = updatedSynth;
+          return updatedSynth;
+        });
+      }
+    };
+
     switch (event.type) {
       case 'model_start':
-        setResponses(prev => prev.map(r =>
+        updateState(prev => prev.map(r =>
           r.modelId === event.modelId
             ? { ...r, status: 'streaming' }
             : r
@@ -149,7 +191,7 @@ export default function Home() {
         break;
 
       case 'model_chunk':
-        setResponses(prev => prev.map(r =>
+        updateState(prev => prev.map(r =>
           r.modelId === event.modelId
             ? { ...r, content: r.content + (event.content || '') }
             : r
@@ -157,7 +199,7 @@ export default function Home() {
         break;
 
       case 'model_complete':
-        setResponses(prev => prev.map(r =>
+        updateState(prev => prev.map(r =>
           r.modelId === event.modelId
             ? { ...r, status: 'complete', content: event.content || r.content, tokens: event.tokens }
             : r
@@ -165,7 +207,7 @@ export default function Home() {
         break;
 
       case 'model_error':
-        setResponses(prev => prev.map(r =>
+        updateState(prev => prev.map(r =>
           r.modelId === event.modelId
             ? { ...r, status: 'error', error: event.error }
             : r
@@ -177,13 +219,19 @@ export default function Home() {
         break;
 
       case 'synthesis_chunk':
-        setSynthesizedContent(prev => prev + (event.content || ''));
+        updateState(
+          prev => prev, // No change to responses
+          prev => prev + (event.content || '')
+        );
         break;
 
       case 'synthesis_complete':
         setIsSynthesizing(false);
         if (event.content) {
-          setSynthesizedContent(event.content);
+          updateState(
+            prev => prev,
+            event.content
+          );
         }
         break;
 
@@ -196,17 +244,13 @@ export default function Home() {
         setIsGenerating(false);
         setIsSynthesizing(false);
 
-        // Save to history using current state ref to avoid staleness issues 
-        // OR rely on the fact that by 'complete' event, other updates have fired.
-        // Actually, we need to pass the final state or use functional updates. 
-        // But addToHistory needs the FULL state.
-        // Let's use the ref we added.
+        // Save to history using authoritative ref state
         addToHistory(
           originalPrompt,
           settings.selectedModels,
           settings.refinementModel,
-          stateRef.current.responses,
-          stateRef.current.synthesizedContent
+          generationStateRef.current.responses,
+          generationStateRef.current.synthesizedContent
         );
         break;
     }
@@ -214,9 +258,15 @@ export default function Home() {
 
   const handleLoadHistory = (item: HistoryItem) => {
     // Restore state
-    setPrompt(item.prompt); // We might need to update the imput too
+    setPrompt(item.prompt);
     setResponses(item.responses);
     setSynthesizedContent(item.synthesizedContent);
+    // Sync ref
+    generationStateRef.current = {
+      responses: item.responses,
+      synthesizedContent: item.synthesizedContent
+    };
+
     setIsGenerating(false);
     setIsSynthesizing(false);
     setError(null);
@@ -238,7 +288,7 @@ export default function Home() {
           onCancel={handleCancel}
           isLoading={isGenerating}
           disabled={!hasApiKey}
-          initialValue={prompt} // Assuming PromptInput can accept this to sync
+          initialValue={prompt}
         />
 
         <ModelSelector models={models} isLoading={isLoadingModels} />
