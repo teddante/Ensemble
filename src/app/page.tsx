@@ -1,17 +1,20 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Header } from '@/components/Header';
 import { SettingsModal } from '@/components/SettingsModal';
 import { PromptInput } from '@/components/PromptInput';
 import { ModelSelector } from '@/components/ModelSelector';
 import { ResponsePanel } from '@/components/ResponsePanel';
 import { SynthesizedResponse } from '@/components/SynthesizedResponse';
+import { useModels } from '@/hooks/useModels';
 import { useSettings } from '@/hooks/useSettings';
 import { ModelResponse, StreamEvent } from '@/types';
 
 export default function Home() {
   const { settings, hasApiKey } = useSettings();
+  const { models, isLoading: isLoadingModels } = useModels();
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [responses, setResponses] = useState<ModelResponse[]>([]);
@@ -21,13 +24,14 @@ export default function Home() {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Show settings modal on first load if no API key
-  useState(() => {
+  useEffect(() => {
     if (!hasApiKey) {
       setIsSettingsOpen(true);
     }
-  });
+  }, [hasApiKey]);
 
   const handleGenerate = useCallback(async (prompt: string) => {
+    // ... (rest of handleGenerate is unchanged)
     if (!hasApiKey) {
       setIsSettingsOpen(true);
       return;
@@ -53,11 +57,13 @@ export default function Home() {
     try {
       const response = await fetch('/api/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${settings.apiKey}`
+        },
         body: JSON.stringify({
           prompt,
           models: settings.selectedModels,
-          apiKey: settings.apiKey,
           refinementModel: settings.refinementModel,
         }),
         signal: abortControllerRef.current.signal,
@@ -111,7 +117,14 @@ export default function Home() {
       setIsSynthesizing(false);
       abortControllerRef.current = null;
     }
-  }, [hasApiKey, settings]);
+  }, [hasApiKey, settings]); // Re-add dependencies cleanly
+
+  const handleCancel = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  }, []);
 
   const handleStreamEvent = useCallback((event: StreamEvent) => {
     switch (event.type) {
@@ -134,7 +147,7 @@ export default function Home() {
       case 'model_complete':
         setResponses(prev => prev.map(r =>
           r.modelId === event.modelId
-            ? { ...r, status: 'complete', content: event.content || r.content }
+            ? { ...r, status: 'complete', content: event.content || r.content, tokens: event.tokens }
             : r
         ));
         break;
@@ -181,11 +194,12 @@ export default function Home() {
       <main className="main-content">
         <PromptInput
           onSubmit={handleGenerate}
+          onCancel={handleCancel}
           isLoading={isGenerating}
           disabled={!hasApiKey}
         />
 
-        <ModelSelector />
+        <ModelSelector models={models} isLoading={isLoadingModels} />
 
         {error && (
           <div className="prompt-warning" style={{ marginBottom: '1.5rem' }}>
@@ -199,12 +213,13 @@ export default function Home() {
           isGenerating={isGenerating}
         />
 
-        <ResponsePanel responses={responses} />
+        <ResponsePanel responses={responses} models={models} />
       </main>
 
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        models={models}
       />
     </div>
   );

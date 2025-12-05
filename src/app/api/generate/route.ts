@@ -10,8 +10,9 @@ function createSSEResponse(stream: ReadableStream): Response {
     return new Response(stream, {
         headers: {
             'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
+            'Cache-Control': 'no-cache, no-transform',
             'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no',
         },
     });
 }
@@ -63,7 +64,7 @@ async function streamModelResponse(
             type: 'model_complete',
             modelId: model,
             content: fullContent,
-            tokens: fullContent.split(/\s+/).length
+            tokens: fullContent.split(/\s+/).filter(Boolean).length // Word count approximation
         });
 
         return { modelId: model, content: fullContent, success: true };
@@ -77,7 +78,11 @@ async function streamModelResponse(
 export async function POST(request: NextRequest): Promise<Response> {
     try {
         const body = await request.json();
-        const { prompt, models, apiKey, refinementModel } = body;
+        const { prompt, models, refinementModel } = body;
+
+        // Get API key from Authorization header
+        const authHeader = request.headers.get('authorization');
+        const apiKey = authHeader?.replace('Bearer ', '') || body.apiKey; // Fallback to body for transition
 
         // Validate inputs
         const promptValidation = validatePrompt(prompt);
@@ -87,7 +92,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
         const apiKeyValidation = validateApiKey(apiKey);
         if (!apiKeyValidation.isValid) {
-            return Response.json({ error: apiKeyValidation.error }, { status: 400 });
+            return Response.json({ error: apiKeyValidation.error }, { status: 401 });
         }
 
         const modelsValidation = validateModels(models);
@@ -95,10 +100,16 @@ export async function POST(request: NextRequest): Promise<Response> {
             return Response.json({ error: modelsValidation.error }, { status: 400 });
         }
 
-        // Create OpenRouter client with correct SDK options
+        // Create OpenRouter client
+        // Get referer from request or use default
+        const referer = request.headers.get('referer') ||
+            request.headers.get('origin') ||
+            process.env.NEXT_PUBLIC_APP_URL ||
+            'https://ensemble.app';
+
         const client = new OpenRouter({
             apiKey: apiKeyValidation.sanitized!,
-            httpReferer: 'https://ensemble.app',
+            httpReferer: referer,
             xTitle: 'Ensemble Multi-LLM',
         });
 

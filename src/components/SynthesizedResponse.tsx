@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Copy, Check, Sparkles, Loader2 } from 'lucide-react';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface SynthesizedResponseProps {
     content: string;
@@ -64,7 +65,7 @@ export function SynthesizedResponse({ content, isStreaming, isGenerating }: Synt
 
             <div className="synthesized-content">
                 {content ? (
-                    <pre>{content}</pre>
+                    <MarkdownRenderer content={content} />
                 ) : isGenerating ? (
                     <div className="synthesized-placeholder">
                         <Loader2 size={24} className="spin" />

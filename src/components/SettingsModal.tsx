@@ -1,19 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Eye, EyeOff, ExternalLink } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
-import { DEFAULT_MODELS } from '@/types';
+import { Model } from '@/types';
 
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
+    models: Model[];
 }
 
-export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
     const { settings, updateApiKey, updateRefinementModel } = useSettings();
     const [showApiKey, setShowApiKey] = useState(false);
     const [localApiKey, setLocalApiKey] = useState(settings.apiKey);
+
+    // Sync local state when modal opens or settings change
+    useEffect(() => {
+        if (isOpen) {
+            setLocalApiKey(settings.apiKey);
+        }
+    }, [isOpen, settings.apiKey]);
 
     if (!isOpen) return null;
 
@@ -80,7 +88,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             onChange={(e) => updateRefinementModel(e.target.value)}
                             className="select-input"
                         >
-                            {DEFAULT_MODELS.map((model) => (
+                            {models.map((model) => (
                                 <option key={model.id} value={model.id}>
                                     {model.name} ({model.provider})
                                 </option>

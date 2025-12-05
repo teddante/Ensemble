@@ -4,7 +4,12 @@ export interface Model {
     id: string;
     name: string;
     provider: string;
-    description?: string;
+    description: string;
+    contextWindow?: number;
+    pricing?: {
+        prompt: string;
+        completion: string;
+    };
 }
 
 export interface ModelResponse {
@@ -12,7 +17,7 @@ export interface ModelResponse {
     content: string;
     status: 'pending' | 'streaming' | 'complete' | 'error';
     error?: string;
-    tokens?: number;
+    tokens?: number; // Approximate word count
 }
 
 export interface GenerationRequest {
@@ -45,7 +50,7 @@ export interface Settings {
     refinementModel: string;
 }
 
-export const DEFAULT_MODELS: Model[] = [
+export const FALLBACK_MODELS: Model[] = [
     {
         id: 'anthropic/claude-3.5-sonnet',
         name: 'Claude 3.5 Sonnet',
@@ -53,16 +58,16 @@ export const DEFAULT_MODELS: Model[] = [
         description: 'Most intelligent Claude model'
     },
     {
-        id: 'openai/gpt-4o',
-        name: 'GPT-4o',
-        provider: 'OpenAI',
-        description: 'OpenAI flagship multimodal model'
-    },
-    {
         id: 'google/gemini-2.0-flash-exp:free',
         name: 'Gemini 2.0 Flash',
         provider: 'Google',
         description: 'Google latest experimental model (Free)'
+    },
+    {
+        id: 'openai/gpt-4o',
+        name: 'GPT-4o',
+        provider: 'OpenAI',
+        description: 'OpenAI flagship multimodal model'
     },
     {
         id: 'anthropic/claude-3-haiku',

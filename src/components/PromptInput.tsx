@@ -1,15 +1,16 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Loader2, X } from 'lucide-react';
 
 interface PromptInputProps {
     onSubmit: (prompt: string) => void;
+    onCancel?: () => void;
     isLoading: boolean;
     disabled: boolean;
 }
 
-export function PromptInput({ onSubmit, isLoading, disabled }: PromptInputProps) {
+export function PromptInput({ onSubmit, onCancel, isLoading, disabled }: PromptInputProps) {
     const [prompt, setPrompt] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -36,7 +37,13 @@ export function PromptInput({ onSubmit, isLoading, disabled }: PromptInputProps)
         }
     };
 
-    const isDisabled = disabled || isLoading || !prompt.trim();
+    const handleCancel = () => {
+        if (onCancel) {
+            onCancel();
+        }
+    };
+
+    const isDisabled = disabled || !prompt.trim();
 
     return (
         <form onSubmit={handleSubmit} className="prompt-form">
@@ -53,19 +60,27 @@ export function PromptInput({ onSubmit, isLoading, disabled }: PromptInputProps)
                 />
                 <div className="prompt-actions">
                     <span className="char-count">{prompt.length.toLocaleString()} chars</span>
-                    <button
-                        type="submit"
-                        className="submit-button"
-                        disabled={isDisabled}
-                        aria-label="Generate response"
-                    >
-                        {isLoading ? (
-                            <Loader2 size={20} className="spin" />
-                        ) : (
+                    {isLoading ? (
+                        <button
+                            type="button"
+                            className="cancel-button"
+                            onClick={handleCancel}
+                            aria-label="Cancel generation"
+                        >
+                            <X size={20} />
+                            <span>Cancel</span>
+                        </button>
+                    ) : (
+                        <button
+                            type="submit"
+                            className="submit-button"
+                            disabled={isDisabled}
+                            aria-label="Generate response"
+                        >
                             <Send size={20} />
-                        )}
-                        <span>{isLoading ? 'Generating...' : 'Generate'}</span>
-                    </button>
+                            <span>Generate</span>
+                        </button>
+                    )}
                 </div>
             </div>
             {disabled && (
@@ -76,3 +91,4 @@ export function PromptInput({ onSubmit, isLoading, disabled }: PromptInputProps)
         </form>
     );
 }
+

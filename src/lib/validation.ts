@@ -1,12 +1,5 @@
 // Input validation utilities
 
-const DANGEROUS_PATTERNS = [
-    /\{\{.*\}\}/g,  // Template injection
-    /<script[^>]*>.*<\/script>/gi,  // Script tags
-    /javascript:/gi,  // JavaScript protocol
-    /on\w+\s*=/gi,  // Event handlers
-];
-
 const MAX_PROMPT_LENGTH = 50000;
 const MIN_PROMPT_LENGTH = 1;
 
@@ -36,12 +29,9 @@ export function validatePrompt(prompt: string): ValidationResult {
         };
     }
 
-    // Check for dangerous patterns
-    for (const pattern of DANGEROUS_PATTERNS) {
-        if (pattern.test(trimmed)) {
-            return { isValid: false, error: 'Prompt contains invalid content' };
-        }
-    }
+    // We allow all content since we use safe rendering (React + react-markdown)
+    // and preventing code snippets would hinder the tool's purpose.
+    // Length checks are sufficient for basic DOS protection.
 
     return { isValid: true, sanitized: trimmed };
 }

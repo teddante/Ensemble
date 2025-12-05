@@ -2,9 +2,14 @@
 
 import { Check } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
-import { DEFAULT_MODELS } from '@/types';
+import { Model } from '@/types';
 
-export function ModelSelector() {
+interface ModelSelectorProps {
+    models: Model[];
+    isLoading?: boolean;
+}
+
+export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
     const { settings, updateSelectedModels } = useSettings();
 
     const toggleModel = (modelId: string) => {
@@ -20,6 +25,13 @@ export function ModelSelector() {
         }
     };
 
+    if (isLoading) {
+        return <div className="p-4 text-center">Loading models...</div>;
+    }
+
+    // Ensure we don't display selected models that aren't in the available list (unless we want to keep them)
+    // For now, we trust the `models` list is comprehensive or fallback-enabled.
+
     return (
         <div className="model-selector">
             <div className="model-selector-header">
@@ -29,7 +41,7 @@ export function ModelSelector() {
                 </span>
             </div>
             <div className="model-chips">
-                {DEFAULT_MODELS.map((model) => {
+                {models.map((model) => {
                     const isSelected = settings.selectedModels.includes(model.id);
                     return (
                         <button

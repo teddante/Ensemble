@@ -2,13 +2,15 @@
 
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, CheckCircle, XCircle, Loader2 } from 'lucide-react';
-import { ModelResponse, DEFAULT_MODELS } from '@/types';
+import { ModelResponse, Model } from '@/types';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface ResponsePanelProps {
     responses: ModelResponse[];
+    models: Model[];
 }
 
-export function ResponsePanel({ responses }: ResponsePanelProps) {
+export function ResponsePanel({ responses, models }: ResponsePanelProps) {
     const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
 
     if (responses.length === 0) {
@@ -28,7 +30,7 @@ export function ResponsePanel({ responses }: ResponsePanelProps) {
     };
 
     const getModelName = (modelId: string): string => {
-        const model = DEFAULT_MODELS.find(m => m.id === modelId);
+        const model = models.find(m => m.id === modelId);
         return model?.name || modelId.split('/').pop() || modelId;
     };
 
@@ -78,10 +80,17 @@ export function ResponsePanel({ responses }: ResponsePanelProps) {
                                     <span className="response-model-name">
                                         {getModelName(response.modelId)}
                                     </span>
-                                    <span className={`response-status ${response.status}`}>
-                                        {getStatusIcon(response.status)}
-                                        {getStatusLabel(response.status)}
-                                    </span>
+                                    <div className="response-status-group">
+                                        {response.tokens && (
+                                            <span className="response-tokens">
+                                                {response.tokens} words
+                                            </span>
+                                        )}
+                                        <span className={`response-status ${response.status}`}>
+                                            {getStatusIcon(response.status)}
+                                            {getStatusLabel(response.status)}
+                                        </span>
+                                    </div>
                                 </div>
                                 {(response.status === 'complete' || response.status === 'error') && (
                                     <span className="expand-icon">
@@ -92,7 +101,7 @@ export function ResponsePanel({ responses }: ResponsePanelProps) {
 
                             {isExpanded && response.status === 'complete' && response.content && (
                                 <div className="response-card-content">
-                                    <pre>{response.content}</pre>
+                                    <MarkdownRenderer content={response.content} />
                                 </div>
                             )}
 
