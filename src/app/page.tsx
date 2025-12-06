@@ -18,8 +18,18 @@ import { useHistory, HistoryItem } from '@/hooks/useHistory';
 import { HistorySidebar } from '@/components/HistorySidebar';
 
 export default function Home() {
-  const { settings, hasApiKey } = useSettings();
-  const { models, isLoading: isLoadingModels } = useModels();
+  const { settings, hasApiKey, updateSelectedModels } = useSettings();
+  const {
+    models,
+    isLoading: isLoadingModels,
+    isValidating,
+    setIsValidating,
+    removedModelsWarning,
+    validateUserSelectedModels,
+    dismissRemovedModelsWarning,
+    setRemovedSelectedModels,
+    validationDoneRef
+  } = useModels();
   const { history, addToHistory, deleteItem, clearHistory, storageWarning } = useHistory();
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -40,6 +50,33 @@ export default function Home() {
       setIsSettingsOpen(true);
     }
   }, [hasApiKey]);
+
+  // Validate user-selected models when models are loaded
+  useEffect(() => {
+    // Only validate once models are loaded and we haven't validated yet
+    if (!isLoadingModels && models.length > 0 && !validationDoneRef.current && settings.selectedModels.length > 0) {
+      setIsValidating(true);
+
+      const { validModels, removedModels } = validateUserSelectedModels(
+        settings.selectedModels,
+        models
+      );
+
+      // If models were removed, update settings and show notification
+      if (removedModels.length > 0) {
+        console.warn('[Ensemble] Invalid user-selected models removed:', removedModels.map(r => r.modelId).join(', '));
+        setRemovedSelectedModels(removedModels);
+
+        // Update settings with only valid models
+        if (validModels.length > 0) {
+          updateSelectedModels(validModels);
+        }
+      }
+
+      validationDoneRef.current = true;
+      setIsValidating(false);
+    }
+  }, [isLoadingModels, models, settings.selectedModels, validateUserSelectedModels, updateSelectedModels, setRemovedSelectedModels, setIsValidating, validationDoneRef]);
 
   const handleGenerate = useCallback(async (newPrompt: string) => {
     if (!hasApiKey) {
@@ -332,7 +369,41 @@ export default function Home() {
           initialValue={prompt}
         />
 
-        <ModelSelector models={models} isLoading={isLoadingModels} />
+        <ModelSelector models={models} isLoading={isLoadingModels || isValidating} />
+
+        {/* Removed models warning */}
+        {removedModelsWarning && (
+          <div
+            className="prompt-warning"
+            style={{
+              marginBottom: '1.5rem',
+              background: 'rgba(255, 100, 50, 0.1)',
+              borderColor: 'rgba(255, 100, 50, 0.5)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: '1rem'
+            }}
+          >
+            <span>⚠️ {removedModelsWarning}</span>
+            <button
+              onClick={dismissRemovedModelsWarning}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '1rem',
+                color: 'inherit',
+                opacity: 0.7,
+                padding: '0 0.25rem',
+                lineHeight: 1
+              }}
+              aria-label="Dismiss notification"
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         {error && (
           <div className="prompt-warning" style={{ marginBottom: '1.5rem' }}>

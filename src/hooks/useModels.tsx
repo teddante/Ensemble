@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Model, FALLBACK_MODELS, validateSelectedModels } from '@/types';
 import { MODELS_CACHE_TTL, MAX_RETRIES, INITIAL_RETRY_DELAY_MS } from '@/lib/constants';
 
@@ -127,6 +127,11 @@ async function wait(attempt: number): Promise<void> {
     await new Promise(resolve => setTimeout(resolve, delay));
 }
 
+export interface RemovedModelInfo {
+    modelId: string;
+    reason: 'unavailable';
+}
+
 export function useModels() {
     const [models, setModels] = useState<Model[]>(() => {
         // Initialize with cache if available, otherwise use filtered fallback
@@ -134,18 +139,55 @@ export function useModels() {
         return cached?.models || getInitialFallbackModels();
     });
     const [isLoading, setIsLoading] = useState(true);
+    const [isValidating, setIsValidating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [staleModelIds, setStaleModelIds] = useState<string[]>(() => {
         // Initialize with known stale models from localStorage
         const validated = getValidatedFallback();
         return validated?.invalidModelIds || [];
     });
+    const [removedSelectedModels, setRemovedSelectedModels] = useState<RemovedModelInfo[]>([]);
+
+    // Track if validation has been done to prevent re-notifications
+    const validationDoneRef = useRef(false);
 
     // Memoize stale models warning message
     const staleModelsWarning = useMemo(() => {
         if (staleModelIds.length === 0) return null;
         return `Some default models are no longer available: ${staleModelIds.join(', ')}`;
     }, [staleModelIds]);
+
+    // Memoize removed selected models warning message
+    const removedModelsWarning = useMemo(() => {
+        if (removedSelectedModels.length === 0) return null;
+        const names = removedSelectedModels.map(r => r.modelId);
+        return `The following models were removed from your selection (no longer available): ${names.join(', ')}`;
+    }, [removedSelectedModels]);
+
+    /**
+     * Validate user-selected models against live models
+     * Returns list of removed models for UI feedback
+     */
+    const validateUserSelectedModels = useCallback((
+        selectedModels: string[],
+        liveModels: Model[]
+    ): { validModels: string[]; removedModels: RemovedModelInfo[] } => {
+        const { validModels, invalidModels } = validateSelectedModels(selectedModels, liveModels);
+
+        const removedModels: RemovedModelInfo[] = invalidModels.map(modelId => ({
+            modelId,
+            reason: 'unavailable' as const
+        }));
+
+        return { validModels, removedModels };
+    }, []);
+
+    /**
+     * Clear the removed models notification
+     */
+    const dismissRemovedModelsWarning = useCallback(() => {
+        setRemovedSelectedModels([]);
+    }, []);
 
     const fetchModels = useCallback(async (isRetry = false) => {
         if (!isRetry) {
@@ -212,7 +254,31 @@ export function useModels() {
         fetchModels(true);
     }, [fetchModels]);
 
-    return { models, isLoading, error, staleModelIds, staleModelsWarning, retryFetching };
+    /**
+     * Reset validation state (useful when user manually changes selection)
+     */
+    const resetValidationState = useCallback(() => {
+        validationDoneRef.current = false;
+        setRemovedSelectedModels([]);
+    }, []);
+
+    return {
+        models,
+        isLoading,
+        isValidating,
+        setIsValidating,
+        error,
+        staleModelIds,
+        staleModelsWarning,
+        removedSelectedModels,
+        removedModelsWarning,
+        setRemovedSelectedModels,
+        validateUserSelectedModels,
+        dismissRemovedModelsWarning,
+        resetValidationState,
+        validationDoneRef,
+        retryFetching
+    };
 }
 
 
