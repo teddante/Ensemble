@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeSanitize from 'rehype-sanitize';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -110,6 +111,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
         <div className="markdown-content">
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeSanitize]}
                 components={markdownComponents}
             >
                 {content}

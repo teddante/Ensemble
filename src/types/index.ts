@@ -140,3 +140,29 @@ export const DEFAULT_SELECTED_MODELS = [
 ];
 
 export const DEFAULT_REFINEMENT_MODEL = 'anthropic/claude-3.5-sonnet';
+
+/**
+ * Validates selected models against available models list
+ * Filters out any models that no longer exist and ensures at least one valid model
+ */
+export function validateSelectedModels(
+    selectedModels: string[],
+    availableModels: Model[]
+): { validModels: string[]; invalidModels: string[] } {
+    const availableIds = new Set(availableModels.map(m => m.id));
+
+    const validModels = selectedModels.filter(id => availableIds.has(id));
+    const invalidModels = selectedModels.filter(id => !availableIds.has(id));
+
+    // If no valid models, fallback to defaults that are available
+    if (validModels.length === 0) {
+        const fallbackModels = DEFAULT_SELECTED_MODELS.filter(id => availableIds.has(id));
+        // If even defaults aren't available, use first available model
+        if (fallbackModels.length === 0 && availableModels.length > 0) {
+            return { validModels: [availableModels[0].id], invalidModels };
+        }
+        return { validModels: fallbackModels, invalidModels };
+    }
+
+    return { validModels, invalidModels };
+}

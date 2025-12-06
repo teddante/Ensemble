@@ -1,5 +1,9 @@
 import type { NextConfig } from "next";
 
+// Build CSP based on environment
+// Next.js dev mode requires 'unsafe-eval' for HMR, but production doesn't need it
+const isDev = process.env.NODE_ENV === 'development';
+
 const securityHeaders = [
   {
     key: 'X-DNS-Prefetch-Control',
@@ -29,7 +33,8 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js requires unsafe-inline/eval
+      // Next.js requires unsafe-inline; unsafe-eval only needed in dev for HMR
+      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob:",

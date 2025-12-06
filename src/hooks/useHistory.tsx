@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ModelResponse } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { MAX_HISTORY_ITEMS } from '@/lib/constants';
@@ -102,16 +102,31 @@ export function useHistory() {
         return [];
     }, [checkStorageUsage]);
 
-    // Use effect to save history to localStorage whenever it changes
-    // This avoids race conditions from calling saveToLocalStorage inside setState
-    const [pendingSave, setPendingSave] = useState(false);
+    // Debounced save using ref to batch rapid updates (fixes race condition)
+    const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const SAVE_DEBOUNCE_MS = 500;
 
-    useEffect(() => {
-        if (pendingSave && history.length >= 0) {
-            saveToLocalStorage(history);
-            setPendingSave(false);
+    const debouncedSave = useCallback((items: HistoryItem[]) => {
+        // Clear any pending save
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
         }
-    }, [history, pendingSave, saveToLocalStorage]);
+
+        // Schedule new save after debounce period
+        saveTimeoutRef.current = setTimeout(() => {
+            saveToLocalStorage(items);
+            saveTimeoutRef.current = null;
+        }, SAVE_DEBOUNCE_MS);
+    }, [saveToLocalStorage]);
+
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+            }
+        };
+    }, []);
 
     const addToHistory = useCallback((
         prompt: string,
@@ -132,14 +147,16 @@ export function useHistory() {
             modelNames // Store model names for display when models change
         };
 
-        setHistory(prev => [newItem, ...prev].slice(0, MAX_HISTORY_ITEMS));
-        setPendingSave(true);
-    }, []);
+        const newHistory = [newItem, ...history].slice(0, MAX_HISTORY_ITEMS);
+        setHistory(newHistory);
+        debouncedSave(newHistory);
+    }, [history, debouncedSave]);
 
     const deleteItem = useCallback((id: string) => {
-        setHistory(prev => prev.filter(item => item.id !== id));
-        setPendingSave(true);
-    }, []);
+        const newHistory = history.filter(item => item.id !== id);
+        setHistory(newHistory);
+        debouncedSave(newHistory);
+    }, [history, debouncedSave]);
 
     const clearHistory = useCallback(() => {
         setHistory([]);

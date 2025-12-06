@@ -51,6 +51,9 @@ describe('useHistory Hook', () => {
 
         act(() => {
             result.current.addToHistory('Prompt 1', [], '', [], '');
+        });
+
+        act(() => {
             result.current.addToHistory('Prompt 2', [], '', [], '');
         });
 

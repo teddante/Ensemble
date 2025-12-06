@@ -20,7 +20,7 @@ import { HistorySidebar } from '@/components/HistorySidebar';
 export default function Home() {
   const { settings, hasApiKey } = useSettings();
   const { models, isLoading: isLoadingModels } = useModels();
-  const { history, addToHistory, deleteItem, clearHistory } = useHistory();
+  const { history, addToHistory, deleteItem, clearHistory, storageWarning } = useHistory();
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -337,6 +337,12 @@ export default function Home() {
         {error && (
           <div className="prompt-warning" style={{ marginBottom: '1.5rem' }}>
             {error}
+          </div>
+        )}
+
+        {storageWarning && (
+          <div className="prompt-warning" style={{ marginBottom: '1.5rem', background: 'rgba(255, 170, 0, 0.1)', borderColor: 'rgba(255, 170, 0, 0.5)' }}>
+            ⚠️ {storageWarning}
           </div>
         )}
 
