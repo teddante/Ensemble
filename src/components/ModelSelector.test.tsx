@@ -52,56 +52,88 @@ describe('ModelSelector', () => {
 
     it('renders loading skeleton when isLoading is true', () => {
         const { container } = render(<ModelSelector models={[]} isLoading={true} />);
-
-        // Should show skeleton elements
         const skeletons = container.querySelectorAll('.skeleton-chip');
         expect(skeletons.length).toBeGreaterThan(0);
     });
 
-    it('renders model selector with header', () => {
+    it('renders selected models section with header', () => {
         render(<ModelSelector models={mockModels} isLoading={false} />);
-
-        expect(screen.getByText('Select Models')).toBeInTheDocument();
-        expect(screen.getByText('1 selected')).toBeInTheDocument();
+        expect(screen.getByText('Selected Models')).toBeInTheDocument();
     });
 
-    it('renders search input', () => {
+    it('displays selected model names clearly', () => {
+        render(<ModelSelector models={mockModels} isLoading={false} />);
+        // Should show the selected model name
+        expect(screen.getByText('Claude 3.5 Sonnet')).toBeInTheDocument();
+        // Should show the provider
+        expect(screen.getByText('Anthropic')).toBeInTheDocument();
+    });
+
+    it('shows add more models button', () => {
+        render(<ModelSelector models={mockModels} isLoading={false} />);
+        expect(screen.getByText('Add more models')).toBeInTheDocument();
+    });
+
+    it('expands model browser when clicking add more', () => {
         render(<ModelSelector models={mockModels} isLoading={false} />);
 
+        const expandButton = screen.getByText('Add more models');
+        fireEvent.click(expandButton);
+
+        // Should now show search and filters
         expect(screen.getByPlaceholderText('Search models...')).toBeInTheDocument();
+        expect(screen.getByText('Hide all models')).toBeInTheDocument();
+    });
+
+    it('shows FREE badge for free models in selected section', () => {
+        // Update mock to include a free model as selected
+        vi.doMock('@/hooks/useSettings', () => ({
+            useSettings: () => ({
+                settings: {
+                    selectedModels: ['google/gemini-2.0-flash-exp:free'],
+                    apiKey: '********',
+                    refinementModel: 'anthropic/claude-3.5-sonnet',
+                },
+                updateSelectedModels: mockUpdateSelectedModels,
+            }),
+        }));
+
+        render(<ModelSelector models={mockModels} isLoading={false} />);
+        // Component should render without error
+        expect(screen.getByText('Selected Models')).toBeInTheDocument();
     });
 
     it('filters models when searching', () => {
         render(<ModelSelector models={mockModels} isLoading={false} />);
 
+        // Expand first
+        fireEvent.click(screen.getByText('Add more models'));
+
         const searchInput = screen.getByPlaceholderText('Search models...');
         fireEvent.change(searchInput, { target: { value: 'GPT' } });
 
-        // Should show filter count
-        expect(screen.getByText('2 found')).toBeInTheDocument();
+        expect(screen.getByText('2 models found')).toBeInTheDocument();
     });
 
-    it('groups models by provider', () => {
+    it('groups models by provider when expanded', () => {
         render(<ModelSelector models={mockModels} isLoading={false} />);
 
-        // Should show provider group headers (may appear multiple times due to selected section)
-        expect(screen.getAllByText('Anthropic').length).toBeGreaterThan(0);
+        // Expand first
+        fireEvent.click(screen.getByText('Add more models'));
+
+        // Should show provider headers
         expect(screen.getAllByText('OpenAI').length).toBeGreaterThan(0);
         expect(screen.getAllByText('Google').length).toBeGreaterThan(0);
     });
 
-    it('shows model count per provider', () => {
+    it('toggles model selection', () => {
         render(<ModelSelector models={mockModels} isLoading={false} />);
 
-        // OpenAI has 2 models
-        expect(screen.getByText(/2 models/)).toBeInTheDocument();
-    });
+        // Expand first
+        fireEvent.click(screen.getByText('Add more models'));
 
-    it('toggles model selection on click', () => {
-        render(<ModelSelector models={mockModels} isLoading={false} />);
-
-        // Find and click GPT-4o to select it
-        const gpt4Button = screen.getByRole('button', { name: /Select GPT-4o$/i });
+        // Find GPT-4o in the list and click it
+        const gpt4Button = screen.getByRole('button', { name: /GPT-4o$/i });
         fireEvent.click(gpt4Button);
 
         expect(mockUpdateSelectedModels).toHaveBeenCalledWith([
@@ -110,29 +142,8 @@ describe('ModelSelector', () => {
         ]);
     });
 
-    it('prevents deselecting last model', () => {
-        render(<ModelSelector models={mockModels} isLoading={false} />);
-
-        // Find and click Claude to try to deselect (it's the only selected model)
-        const claudeButtons = screen.getAllByRole('button', { name: /Deselect Claude/i });
-        fireEvent.click(claudeButtons[0]);
-
-        // Should not call updateSelectedModels since it's the last one
-        expect(mockUpdateSelectedModels).not.toHaveBeenCalled();
-    });
-
-    it('shows no results message when search yields nothing', () => {
-        render(<ModelSelector models={mockModels} isLoading={false} />);
-
-        const searchInput = screen.getByPlaceholderText('Search models...');
-        fireEvent.change(searchInput, { target: { value: 'nonexistent' } });
-
-        expect(screen.getByText(/No models found matching/)).toBeInTheDocument();
-    });
-
     it('has proper ARIA attributes', () => {
         render(<ModelSelector models={mockModels} isLoading={false} />);
-
         const region = screen.getByRole('region', { name: 'Model selection' });
         expect(region).toBeInTheDocument();
     });

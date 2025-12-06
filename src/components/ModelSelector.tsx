@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Check, Search, ChevronDown, ChevronRight } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
+import { Check, Search, ChevronDown, ChevronRight, X, Zap } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
 import { Model } from '@/types';
 
@@ -10,26 +10,44 @@ interface ModelSelectorProps {
     isLoading?: boolean;
 }
 
+type FilterType = 'all' | 'free';
+
+// Check if model is free
+function isFreeModel(model: Model): boolean {
+    if (model.id.includes(':free')) return true;
+    if (!model.pricing) return false;
+    return parseFloat(model.pricing.prompt) === 0 && parseFloat(model.pricing.completion) === 0;
+}
+
 export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
     const { settings, updateSelectedModels } = useSettings();
     const [searchQuery, setSearchQuery] = useState('');
-    const [collapsedProviders, setCollapsedProviders] = useState<Set<string>>(new Set());
+    // Start with all providers collapsed - will be populated when models load
+    const [collapsedProviders, setCollapsedProviders] = useState<Set<string> | 'all'>('all');
+    const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+    const [isExpanded, setIsExpanded] = useState(false);
 
-    const toggleModel = (modelId: string) => {
+    const toggleModel = useCallback((modelId: string) => {
         const isSelected = settings.selectedModels.includes(modelId);
 
         if (isSelected) {
-            // Don't allow deselecting if it's the only one
             if (settings.selectedModels.length > 1) {
                 updateSelectedModels(settings.selectedModels.filter(id => id !== modelId));
             }
         } else {
             updateSelectedModels([...settings.selectedModels, modelId]);
         }
-    };
+    }, [settings.selectedModels, updateSelectedModels]);
 
     const toggleProvider = (provider: string) => {
         setCollapsedProviders(prev => {
+            // If 'all' collapsed, create a set with all providers EXCEPT this one (expand it)
+            if (prev === 'all') {
+                const allProviders = new Set(models.map(m => m.provider));
+                allProviders.delete(provider); // Remove the one we're expanding
+                return allProviders;
+            }
+            // Otherwise toggle normally
             const next = new Set(prev);
             if (next.has(provider)) {
                 next.delete(provider);
@@ -40,12 +58,18 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
         });
     };
 
+    // Get selected model objects
+    const selectedModelObjects = useMemo(() => {
+        return settings.selectedModels
+            .map(id => models.find(m => m.id === id))
+            .filter((m): m is Model => m !== undefined);
+    }, [models, settings.selectedModels]);
+
     // Filter and group models
-    const { selectedModels, groupedModels, filteredCount } = useMemo(() => {
+    const { groupedModels, filteredCount } = useMemo(() => {
         const query = searchQuery.toLowerCase().trim();
 
-        // Filter models by search query
-        const filtered = query
+        let filtered = query
             ? models.filter(m =>
                 m.name.toLowerCase().includes(query) ||
                 m.provider.toLowerCase().includes(query) ||
@@ -53,10 +77,10 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
             )
             : models;
 
-        // Separate selected models for "pinned" section
-        const selected = filtered.filter(m => settings.selectedModels.includes(m.id));
+        if (activeFilter === 'free') {
+            filtered = filtered.filter(isFreeModel);
+        }
 
-        // Group remaining by provider
         const groups: Record<string, Model[]> = {};
         for (const model of filtered) {
             if (!groups[model.provider]) {
@@ -65,16 +89,17 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
             groups[model.provider].push(model);
         }
 
-        // Sort providers alphabetically
         const sortedGroups = Object.entries(groups)
             .sort(([a], [b]) => a.localeCompare(b));
 
         return {
-            selectedModels: selected,
             groupedModels: sortedGroups,
             filteredCount: filtered.length
         };
-    }, [models, searchQuery, settings.selectedModels]);
+    }, [models, searchQuery, activeFilter]);
+
+    // Get filter counts
+    const freeCount = useMemo(() => models.filter(isFreeModel).length, [models]);
 
     if (isLoading) {
         return (
@@ -82,7 +107,7 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
                 <div className="model-selector-loading">
                     <div className="skeleton-text" style={{ width: '60%' }} />
                     <div className="skeleton-chips">
-                        {[1, 2, 3, 4].map(i => (
+                        {[1, 2, 3].map(i => (
                             <div key={i} className="skeleton-chip" />
                         ))}
                     </div>
@@ -93,105 +118,154 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
 
     return (
         <div className="model-selector" role="region" aria-label="Model selection">
-            <div className="model-selector-header">
-                <h3>Select Models</h3>
-                <span className="model-count">
-                    {settings.selectedModels.length} selected
-                </span>
+            {/* Selected Models - Always Visible */}
+            <div className="selected-models-section">
+                <div className="selected-models-header">
+                    <h3>Selected Models</h3>
+                    <button
+                        className="expand-toggle"
+                        onClick={() => setIsExpanded(!isExpanded)}
+                    >
+                        {isExpanded ? 'Hide all models' : 'Add more models'}
+                    </button>
+                </div>
+
+                <div className="selected-models-list">
+                    {selectedModelObjects.length === 0 ? (
+                        <p className="no-selection-message">No models selected</p>
+                    ) : (
+                        selectedModelObjects.map((model) => (
+                            <div key={model.id} className="selected-model-tag">
+                                <span className="selected-model-name">{model.name}</span>
+                                <span className="selected-model-provider">{model.provider}</span>
+                                {isFreeModel(model) && <span className="free-badge">FREE</span>}
+                                {settings.selectedModels.length > 1 && (
+                                    <button
+                                        className="remove-model-btn"
+                                        onClick={() => toggleModel(model.id)}
+                                        aria-label={`Remove ${model.name}`}
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+                        ))
+                    )}
+                </div>
             </div>
 
-            {/* Search input */}
-            <div className="model-search">
-                <Search size={16} className="search-icon" />
-                <input
-                    type="text"
-                    placeholder="Search models..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="model-search-input"
-                />
-                {searchQuery && (
-                    <span className="search-count">{filteredCount} found</span>
-                )}
-            </div>
-
-            <div className="model-groups">
-                {/* Selected models section (always visible at top) */}
-                {selectedModels.length > 0 && !searchQuery && (
-                    <div className="model-group selected-group">
-                        <div className="model-chips">
-                            {selectedModels.map((model) => (
-                                <button
-                                    key={model.id}
-                                    onClick={() => toggleModel(model.id)}
-                                    className="model-chip selected"
-                                    title={model.description}
-                                    aria-label={`Deselect ${model.name} from ${model.provider}`}
-                                    aria-pressed={true}
-                                >
-                                    <Check size={14} />
-                                    <span className="model-name">{model.name}</span>
-                                    <span className="model-provider">{model.provider}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Grouped by provider */}
-                {groupedModels.map(([provider, providerModels]) => {
-                    const isCollapsed = collapsedProviders.has(provider);
-                    const selectedInGroup = providerModels.filter(m =>
-                        settings.selectedModels.includes(m.id)
-                    ).length;
-
-                    return (
-                        <div key={provider} className="model-group">
+            {/* Expandable Model Browser */}
+            {isExpanded && (
+                <div className="model-browser">
+                    {/* Filters */}
+                    <div className="model-browser-controls">
+                        <div className="model-filter-bar" role="tablist" aria-label="Filter models">
                             <button
-                                className="model-group-header"
-                                onClick={() => toggleProvider(provider)}
+                                className={`filter-btn ${activeFilter === 'all' ? 'active' : ''}`}
+                                onClick={() => setActiveFilter('all')}
+                                role="tab"
+                                aria-selected={activeFilter === 'all'}
                             >
-                                {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                                <span className="provider-name">{provider}</span>
-                                <span className="provider-count">
-                                    {selectedInGroup > 0 && (
-                                        <span className="selected-count">{selectedInGroup} selected · </span>
-                                    )}
-                                    {providerModels.length} models
-                                </span>
+                                All ({models.length})
                             </button>
+                            <button
+                                className={`filter-btn filter-free ${activeFilter === 'free' ? 'active' : ''}`}
+                                onClick={() => setActiveFilter('free')}
+                                role="tab"
+                                aria-selected={activeFilter === 'free'}
+                            >
+                                <Zap size={12} /> Free ({freeCount})
+                            </button>
+                        </div>
 
-                            {!isCollapsed && (
-                                <div className="model-chips">
-                                    {providerModels.map((model) => {
-                                        const isSelected = settings.selectedModels.includes(model.id);
-                                        return (
-                                            <button
-                                                key={model.id}
-                                                onClick={() => toggleModel(model.id)}
-                                                className={`model-chip ${isSelected ? 'selected' : ''}`}
-                                                title={model.description}
-                                                aria-label={`${isSelected ? 'Deselect' : 'Select'} ${model.name}`}
-                                                aria-pressed={isSelected}
-                                            >
-                                                {isSelected && <Check size={14} />}
-                                                <span className="model-name">{model.name}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                        <div className="model-search">
+                            <Search size={14} className="search-icon" />
+                            <input
+                                type="text"
+                                placeholder="Search models..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="model-search-input"
+                            />
+                            {searchQuery && (
+                                <button
+                                    className="search-clear"
+                                    onClick={() => setSearchQuery('')}
+                                    aria-label="Clear search"
+                                >
+                                    <X size={12} />
+                                </button>
                             )}
                         </div>
-                    );
-                })}
-
-                {filteredCount === 0 && (
-                    <div className="no-models-found">
-                        No models found matching &quot;{searchQuery}&quot;
                     </div>
-                )}
-            </div>
+
+                    {/* Search results count */}
+                    {searchQuery && (
+                        <div className="search-results-info">
+                            {filteredCount} models found
+                        </div>
+                    )}
+
+                    {/* Model Groups */}
+                    <div className="model-groups">
+                        {groupedModels.map(([provider, providerModels]) => {
+                            const isCollapsed = collapsedProviders === 'all' || collapsedProviders.has(provider);
+                            const selectedInGroup = providerModels.filter(m =>
+                                settings.selectedModels.includes(m.id)
+                            ).length;
+
+                            return (
+                                <div key={provider} className="model-group">
+                                    <button
+                                        className="model-group-header"
+                                        onClick={() => toggleProvider(provider)}
+                                        aria-expanded={!isCollapsed}
+                                    >
+                                        {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                                        <span className="provider-name">{provider}</span>
+                                        <span className="provider-stats">
+                                            {selectedInGroup > 0 && (
+                                                <span className="selected-count">{selectedInGroup} selected</span>
+                                            )}
+                                            <span className="model-count">{providerModels.length} models</span>
+                                        </span>
+                                    </button>
+
+                                    {!isCollapsed && (
+                                        <div className="provider-models">
+                                            {providerModels.map((model) => {
+                                                const isSelected = settings.selectedModels.includes(model.id);
+                                                const isFree = isFreeModel(model);
+                                                return (
+                                                    <button
+                                                        key={model.id}
+                                                        onClick={() => toggleModel(model.id)}
+                                                        className={`model-option ${isSelected ? 'selected' : ''}`}
+                                                        title={model.description}
+                                                        aria-pressed={isSelected}
+                                                    >
+                                                        <div className="model-option-check">
+                                                            {isSelected && <Check size={12} />}
+                                                        </div>
+                                                        <span className="model-option-name">{model.name}</span>
+                                                        {isFree && <span className="free-indicator">FREE</span>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+
+                        {filteredCount === 0 && (
+                            <div className="no-models-found">
+                                No models found matching &quot;{searchQuery}&quot;
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
-
