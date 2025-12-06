@@ -1,6 +1,6 @@
 'use client';
 
-import { MAX_SYNTHESIS_CHARS } from '@/lib/openrouter';
+import { MAX_SYNTHESIS_CHARS, estimateTokens } from '@/lib/openrouter';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Header } from '@/components/Header';
@@ -54,8 +54,8 @@ export default function Home() {
     setTruncatedModels([]);
     setIsSynthesizing(false);
 
-    // Check for context window limits
-    const approxTokens = Math.ceil(newPrompt.length / 4);
+    // Check for context window limits using accurate token estimation
+    const approxTokens = estimateTokens(newPrompt);
     const contextErrors: string[] = [];
 
     settings.selectedModels.forEach(modelId => {

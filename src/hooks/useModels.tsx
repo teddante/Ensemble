@@ -1,13 +1,20 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Model, FALLBACK_MODELS } from '@/types';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Model, FALLBACK_MODELS, validateSelectedModels } from '@/types';
 import { MODELS_CACHE_TTL, MAX_RETRIES, INITIAL_RETRY_DELAY_MS } from '@/lib/constants';
 
 const CACHE_KEY = 'ensemble_models_cache';
+const VALIDATED_FALLBACK_KEY = 'ensemble_validated_fallback';
 
 interface CachedModels {
     models: Model[];
+    timestamp: number;
+}
+
+interface ValidatedFallback {
+    validModelIds: string[];
+    invalidModelIds: string[];
     timestamp: number;
 }
 
@@ -43,6 +50,78 @@ function setCachedModels(models: Model[]): void {
     }
 }
 
+/**
+ * Get previously validated fallback model IDs from localStorage
+ */
+function getValidatedFallback(): ValidatedFallback | null {
+    if (typeof window === 'undefined') return null;
+
+    try {
+        const cached = localStorage.getItem(VALIDATED_FALLBACK_KEY);
+        if (cached) {
+            const parsed: ValidatedFallback = JSON.parse(cached);
+            // Return if still valid (same TTL as models cache)
+            if (Date.now() - parsed.timestamp < MODELS_CACHE_TTL) {
+                return parsed;
+            }
+        }
+    } catch (error) {
+        console.error('Failed to read validated fallback cache:', error);
+    }
+    return null;
+}
+
+/**
+ * Store validated fallback model IDs in localStorage
+ */
+function setValidatedFallback(validModelIds: string[], invalidModelIds: string[]): void {
+    if (typeof window === 'undefined') return;
+
+    try {
+        const cache: ValidatedFallback = {
+            validModelIds,
+            invalidModelIds,
+            timestamp: Date.now(),
+        };
+        localStorage.setItem(VALIDATED_FALLBACK_KEY, JSON.stringify(cache));
+    } catch (error) {
+        console.error('Failed to cache validated fallback:', error);
+    }
+}
+
+/**
+ * Validate FALLBACK_MODELS against live API models
+ * Returns only the fallback models that still exist
+ */
+function validateFallbackModels(liveModels: Model[]): { valid: Model[]; invalidIds: string[] } {
+    const fallbackIds = FALLBACK_MODELS.map(m => m.id);
+    const { validModels, invalidModels } = validateSelectedModels(fallbackIds, liveModels);
+
+    // Log warning for stale models
+    if (invalidModels.length > 0) {
+        console.warn(
+            `[Ensemble] Stale fallback models detected and filtered out: ${invalidModels.join(', ')}`
+        );
+    }
+
+    // Return validated fallback models (models from live API matching fallback IDs)
+    const validFallback = liveModels.filter(m => validModels.includes(m.id));
+
+    return { valid: validFallback, invalidIds: invalidModels };
+}
+
+/**
+ * Get initial fallback models, filtering out previously known stale models
+ */
+function getInitialFallbackModels(): Model[] {
+    const validated = getValidatedFallback();
+    if (validated && validated.invalidModelIds.length > 0) {
+        // Filter out known stale models from fallback
+        return FALLBACK_MODELS.filter(m => !validated.invalidModelIds.includes(m.id));
+    }
+    return FALLBACK_MODELS;
+}
+
 async function wait(attempt: number): Promise<void> {
     const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
     await new Promise(resolve => setTimeout(resolve, delay));
@@ -50,12 +129,23 @@ async function wait(attempt: number): Promise<void> {
 
 export function useModels() {
     const [models, setModels] = useState<Model[]>(() => {
-        // Initialize with cache if available, otherwise fallback
+        // Initialize with cache if available, otherwise use filtered fallback
         const cached = getCachedModels();
-        return cached?.models || FALLBACK_MODELS;
+        return cached?.models || getInitialFallbackModels();
     });
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [staleModelIds, setStaleModelIds] = useState<string[]>(() => {
+        // Initialize with known stale models from localStorage
+        const validated = getValidatedFallback();
+        return validated?.invalidModelIds || [];
+    });
+
+    // Memoize stale models warning message
+    const staleModelsWarning = useMemo(() => {
+        if (staleModelIds.length === 0) return null;
+        return `Some default models are no longer available: ${staleModelIds.join(', ')}`;
+    }, [staleModelIds]);
 
     const fetchModels = useCallback(async (isRetry = false) => {
         if (!isRetry) {
@@ -79,6 +169,14 @@ export function useModels() {
 
                 const data = await response.json();
                 if (data.models && Array.isArray(data.models)) {
+                    // Validate fallback models against live API on successful fetch
+                    const { invalidIds } = validateFallbackModels(data.models);
+                    setValidatedFallback(
+                        FALLBACK_MODELS.filter(m => !invalidIds.includes(m.id)).map(m => m.id),
+                        invalidIds
+                    );
+                    setStaleModelIds(invalidIds);
+
                     setModels(data.models);
                     setCachedModels(data.models);
                     setError(null);
@@ -114,7 +212,7 @@ export function useModels() {
         fetchModels(true);
     }, [fetchModels]);
 
-    return { models, isLoading, error, retryFetching };
+    return { models, isLoading, error, staleModelIds, staleModelsWarning, retryFetching };
 }
 
 
