@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Settings, DEFAULT_SELECTED_MODELS, DEFAULT_REFINEMENT_MODEL } from '@/types';
+import { API_KEY_MASK } from '@/lib/constants';
 
 interface SettingsContextType {
     settings: Settings;
@@ -85,7 +86,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 setHasApiKey(data.hasKey);
                 // We fake the key in state to avoid breaking other components that check length
                 // But the actual key is in the cookie
-                setSettings(prev => ({ ...prev, apiKey: data.hasKey ? '********' : '' }));
+                setSettings(prev => ({ ...prev, apiKey: data.hasKey ? API_KEY_MASK : '' }));
             }
         } catch (e) {
             console.error('Failed to check server key', e);
@@ -144,7 +145,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
             if (res.ok) {
                 setHasApiKey(true);
-                setSettings(prev => ({ ...prev, apiKey: '********' }));
+                setSettings(prev => ({ ...prev, apiKey: API_KEY_MASK }));
                 return { success: true };
             } else {
                 const data = await res.json();

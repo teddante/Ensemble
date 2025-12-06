@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { X, Eye, EyeOff, ExternalLink, Loader2 } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
 import { Model } from '@/types';
+import { API_KEY_MASK } from '@/lib/constants';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -33,12 +34,17 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
         setError(null);
 
         try {
-            const result = await updateApiKey(localApiKey);
-            if (result.success) {
-                onClose();
-            } else {
-                setError(result.error || 'Failed to save API key');
+            // Only update API key if it's not the mask
+            if (localApiKey !== API_KEY_MASK) {
+                const result = await updateApiKey(localApiKey);
+                if (!result.success) {
+                    setError(result.error || 'Failed to save API key');
+                    return;
+                }
             }
+
+            // Close modal on success (refinement model is updated via state/effect immediately)
+            onClose();
         } catch (err) {
             setError('An unexpected error occurred');
         } finally {
@@ -146,4 +152,3 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
         </div>
     );
 }
-

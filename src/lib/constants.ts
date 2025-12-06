@@ -6,6 +6,7 @@ export const MAX_PROMPT_LENGTH = 50000;
 export const MIN_PROMPT_LENGTH = 1;
 export const MAX_MODELS = 10;
 export const MIN_API_KEY_LENGTH = 10;
+export const API_KEY_MASK = 'sk-********************';
 export const MAX_REQUEST_BODY_SIZE = 100 * 1024; // 100KB
 
 // Synthesis
