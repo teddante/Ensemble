@@ -43,6 +43,11 @@ export function handleOpenRouterError(error: unknown): string {
             return 'Request blocked by moderation filter or access denied.';
         }
 
+        // 400 - Bad Request (often validation errors)
+        if (message.includes('400') || message.includes('bad request') || message.includes('validation')) {
+            return `invalid request: ${originalMessage}`;
+        }
+
         // 404 - Model Not Found
         if (message.includes('404') || message.includes('not found') || message.includes('model does not exist')) {
             return 'The selected model is currently unavailable or does not exist.';

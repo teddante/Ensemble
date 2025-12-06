@@ -97,10 +97,12 @@ export async function streamModelResponse({
                     messages: [{ role: 'user', content: prompt }],
                     reasoning: reasoning,
                     stream: true,
-                    streamOptions: { includeUsage: true }
-                },
+                    // Use snake_case for OpenAI compatibility
+                    // @ts-ignore - OpenRouter SDK types expect streamOptions but API supports stream_options
+                    stream_options: { include_usage: true }
+                } as any,
                 { signal: combinedSignal }
-            );
+            ) as any;
 
             for await (const chunk of stream) {
                 // Check for errors in chunk
