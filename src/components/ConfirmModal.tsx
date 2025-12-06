@@ -1,6 +1,6 @@
 'use client';
 
-import { X, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
 interface ConfirmModalProps {

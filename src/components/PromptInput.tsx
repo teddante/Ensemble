@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Loader2, X } from 'lucide-react';
+import { Send, X } from 'lucide-react';
 
 interface PromptInputProps {
     onSubmit: (prompt: string) => void;
@@ -19,10 +19,11 @@ export function PromptInput({ onSubmit, onCancel, isLoading, disabled, initialVa
 
     // Sync prompt with initialValue when it changes (e.g. loading from history)
     useEffect(() => {
-        if (initialValue) {
+        if (initialValue && initialValue !== prompt) {
+            // eslint-disable-next-line
             setPrompt(initialValue);
         }
-    }, [initialValue]);
+    }, [initialValue, prompt]);
 
     // Auto-resize textarea
     useEffect(() => {

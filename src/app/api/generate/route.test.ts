@@ -39,8 +39,8 @@ vi.mock('@openrouter/sdk', () => ({
 
 // Import after mocks are set up
 import { POST } from '@/app/api/generate/route';
-import { generateRateLimiter, getClientIdentifier } from '@/lib/rateLimit';
-import { generationLock, getSessionIdentifier } from '@/lib/sessionLock';
+import { generateRateLimiter } from '@/lib/rateLimit';
+import { generationLock } from '@/lib/sessionLock';
 import { getApiKeyFromCookie } from '@/app/api/key/route';
 import { NextRequest } from 'next/server';
 

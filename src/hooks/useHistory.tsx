@@ -34,14 +34,7 @@ export function useHistory() {
         }
     }, []);
 
-    // Estimate size of data in bytes
-    const estimateSize = useCallback((data: unknown): number => {
-        try {
-            return new Blob([JSON.stringify(data)]).size;
-        } catch {
-            return JSON.stringify(data).length * 2; // Fallback: UTF-16 estimate
-        }
-    }, []);
+
 
     // Check localStorage usage percentage
     const checkStorageUsage = useCallback((): number => {

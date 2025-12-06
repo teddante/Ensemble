@@ -44,6 +44,113 @@ export default function Home() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Use a ref to store authoritative state for history saving (fixes race condition)
+  const generationStateRef = useRef<{
+    responses: ModelResponse[];
+    synthesizedContent: string;
+  }>({ responses: [], synthesizedContent: '' });
+
+  const handleStreamEvent = useCallback((event: StreamEvent, originalPrompt: string) => {
+    // Helper to update both ref and state
+    const updateState = (
+      newResponses: ModelResponse[] | ((prev: ModelResponse[]) => ModelResponse[]),
+      newSynthesis?: string | ((prev: string) => string)
+    ) => {
+      setResponses(prevResponses => {
+        const updatedResponses = typeof newResponses === 'function' ? newResponses(prevResponses) : newResponses;
+        // Update ref with new responses
+        generationStateRef.current.responses = updatedResponses;
+        return updatedResponses;
+      });
+
+      if (newSynthesis !== undefined) {
+        setSynthesizedContent(prevSynth => {
+          const updatedSynth = typeof newSynthesis === 'function' ? newSynthesis(prevSynth) : newSynthesis;
+          // Update ref with new synthesis
+          generationStateRef.current.synthesizedContent = updatedSynth;
+          return updatedSynth;
+        });
+      }
+    };
+
+    switch (event.type) {
+      case 'model_start':
+        updateState(prev => prev.map(r =>
+          r.modelId === event.modelId
+            ? { ...r, status: 'streaming' }
+            : r
+        ));
+        break;
+
+      case 'model_chunk':
+        updateState(prev => prev.map(r =>
+          r.modelId === event.modelId
+            ? { ...r, content: r.content + (event.content || '') }
+            : r
+        ));
+        break;
+
+      case 'model_complete':
+        if ((event.content || '').length > MAX_SYNTHESIS_CHARS) {
+          setTruncatedModels(prev => [...prev, event.modelId || '']);
+        }
+        updateState(prev => prev.map(r =>
+          r.modelId === event.modelId
+            ? { ...r, status: 'complete', content: event.content || r.content, tokens: event.tokens }
+            : r
+        ));
+        break;
+
+      case 'model_error':
+        updateState(prev => prev.map(r =>
+          r.modelId === event.modelId
+            ? { ...r, status: 'error', error: event.error }
+            : r
+        ));
+        break;
+
+      case 'synthesis_start':
+        setIsSynthesizing(true);
+        break;
+
+      case 'synthesis_chunk':
+        updateState(
+          prev => prev, // No change to responses
+          prev => prev + (event.content || '')
+        );
+        break;
+
+      case 'synthesis_complete':
+        setIsSynthesizing(false);
+        if (event.content) {
+          updateState(
+            prev => prev,
+            event.content
+          );
+        }
+        break;
+
+      case 'error':
+        setError(event.error || 'An error occurred');
+        setIsSynthesizing(false);
+        break;
+
+      case 'complete':
+        setIsGenerating(false);
+        setIsSynthesizing(false);
+
+        // Save to history using authoritative ref state
+        addToHistory(
+          originalPrompt,
+          settings.selectedModels,
+          settings.refinementModel,
+          generationStateRef.current.responses,
+          generationStateRef.current.synthesizedContent
+        );
+        break;
+    }
+  }, [addToHistory, settings]);
+
   // Show settings modal on first load if no API key
   useEffect(() => {
     if (!hasApiKey) {
@@ -189,7 +296,8 @@ export default function Home() {
       setIsSynthesizing(false);
       abortControllerRef.current = null;
     }
-  }, [hasApiKey, settings.selectedModels, settings.refinementModel]);
+
+  }, [hasApiKey, settings.selectedModels, settings.refinementModel, handleStreamEvent, models]);
 
   const handleCancel = useCallback(() => {
     if (abortControllerRef.current) {
@@ -227,112 +335,7 @@ export default function Home() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isGenerating, handleCancel]);
 
-  // Use a ref to store authoritative state for history saving (fixes race condition)
-  const generationStateRef = useRef<{
-    responses: ModelResponse[];
-    synthesizedContent: string;
-  }>({ responses: [], synthesizedContent: '' });
 
-  const handleStreamEvent = useCallback((event: StreamEvent, originalPrompt: string) => {
-    // Helper to update both ref and state
-    const updateState = (
-      newResponses: ModelResponse[] | ((prev: ModelResponse[]) => ModelResponse[]),
-      newSynthesis?: string | ((prev: string) => string)
-    ) => {
-      setResponses(prevResponses => {
-        const updatedResponses = typeof newResponses === 'function' ? newResponses(prevResponses) : newResponses;
-        // Update ref with new responses
-        generationStateRef.current.responses = updatedResponses;
-        return updatedResponses;
-      });
-
-      if (newSynthesis !== undefined) {
-        setSynthesizedContent(prevSynth => {
-          const updatedSynth = typeof newSynthesis === 'function' ? newSynthesis(prevSynth) : newSynthesis;
-          // Update ref with new synthesis
-          generationStateRef.current.synthesizedContent = updatedSynth;
-          return updatedSynth;
-        });
-      }
-    };
-
-    switch (event.type) {
-      case 'model_start':
-        updateState(prev => prev.map(r =>
-          r.modelId === event.modelId
-            ? { ...r, status: 'streaming' }
-            : r
-        ));
-        break;
-
-      case 'model_chunk':
-        updateState(prev => prev.map(r =>
-          r.modelId === event.modelId
-            ? { ...r, content: r.content + (event.content || '') }
-            : r
-        ));
-        break;
-
-      case 'model_complete':
-        if ((event.content || '').length > MAX_SYNTHESIS_CHARS) {
-          setTruncatedModels(prev => [...prev, event.modelId || '']);
-        }
-        updateState(prev => prev.map(r =>
-          r.modelId === event.modelId
-            ? { ...r, status: 'complete', content: event.content || r.content, tokens: event.tokens }
-            : r
-        ));
-        break;
-
-      case 'model_error':
-        updateState(prev => prev.map(r =>
-          r.modelId === event.modelId
-            ? { ...r, status: 'error', error: event.error }
-            : r
-        ));
-        break;
-
-      case 'synthesis_start':
-        setIsSynthesizing(true);
-        break;
-
-      case 'synthesis_chunk':
-        updateState(
-          prev => prev, // No change to responses
-          prev => prev + (event.content || '')
-        );
-        break;
-
-      case 'synthesis_complete':
-        setIsSynthesizing(false);
-        if (event.content) {
-          updateState(
-            prev => prev,
-            event.content
-          );
-        }
-        break;
-
-      case 'error':
-        setError(event.error || 'An error occurred');
-        setIsSynthesizing(false);
-        break;
-
-      case 'complete':
-        setIsGenerating(false);
-        setIsSynthesizing(false);
-
-        // Save to history using authoritative ref state
-        addToHistory(
-          originalPrompt,
-          settings.selectedModels,
-          settings.refinementModel,
-          generationStateRef.current.responses,
-          generationStateRef.current.synthesizedContent
-        );
-        break;
-    }
-  }, [addToHistory, settings]);
 
   const handleLoadHistory = (item: HistoryItem) => {
     // Restore state

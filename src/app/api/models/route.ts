@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OpenRouter } from '@openrouter/sdk';
 import { modelsRateLimiter, getClientIdentifier } from '@/lib/rateLimit';
+import { handleOpenRouterError } from '@/lib/errors';
 
 export const runtime = 'edge';
 
@@ -12,14 +13,7 @@ function validateCSRF(request: NextRequest): boolean {
     return header === 'XMLHttpRequest' || header === 'fetch';
 }
 
-// Sanitize error messages for production
-function sanitizeError(error: unknown): string {
-    if (process.env.NODE_ENV === 'development') {
-        return error instanceof Error ? error.message : 'Unknown error';
-    }
-    // In production, only return generic error
-    return 'Failed to fetch models';
-}
+
 
 export async function GET(request: NextRequest) {
     // CSRF protection
@@ -85,7 +79,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
         console.error('Failed to fetch models:', error);
         return NextResponse.json(
-            { error: sanitizeError(error) },
+            { error: handleOpenRouterError(error) },
             { status: 500 }
         );
     }

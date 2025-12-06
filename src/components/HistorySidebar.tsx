@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Trash2, RotateCcw, X, Clock } from 'lucide-react';
+import { Trash2, X, Clock } from 'lucide-react';
 import { HistoryItem } from '@/hooks/useHistory';
 import { ConfirmModal } from './ConfirmModal';
 

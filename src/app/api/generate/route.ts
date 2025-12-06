@@ -8,6 +8,7 @@ import { generationLock, getSessionIdentifier } from '@/lib/sessionLock';
 import { getApiKeyFromCookie } from '@/app/api/key/route';
 import { MAX_REQUEST_BODY_SIZE, REQUEST_TIMEOUT_MS } from '@/lib/constants';
 import { logger, generateRequestId } from '@/lib/logger';
+import { handleOpenRouterError } from '@/lib/errors';
 
 export const runtime = 'edge';
 
@@ -27,31 +28,7 @@ function sendEvent(controller: ReadableStreamDefaultController, event: StreamEve
     controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`));
 }
 
-// Sanitize error messages for production
-function sanitizeError(error: unknown): string {
-    if (process.env.NODE_ENV === 'development') {
-        return error instanceof Error ? error.message : 'Unknown error';
-    }
 
-    // In production, only return safe error messages
-    if (error instanceof Error) {
-        const safeMessages = [
-            'Request cancelled',
-            'API key is required',
-            'Invalid API key',
-            'Rate limit exceeded',
-            'Model not available',
-        ];
-
-        for (const safe of safeMessages) {
-            if (error.message.includes(safe)) {
-                return error.message;
-            }
-        }
-    }
-
-    return 'An error occurred while processing your request';
-}
 
 async function generateSingleModelResponse(
     model: string,
@@ -97,7 +74,7 @@ async function generateSingleModelResponse(
 
         return { modelId: model, content: fullContent, success: true, usage: finalUsage };
     } catch (error) {
-        const errorMessage = sanitizeError(error);
+        const errorMessage = handleOpenRouterError(error);
         sendEvent(controller, { type: 'model_error', modelId: model, error: errorMessage });
         return { modelId: model, content: '', success: false };
     }
@@ -268,7 +245,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                             if ('error' in chunk && chunk.error) {
                                 sendEvent(controller, {
                                     type: 'error',
-                                    error: `Synthesis failed: ${sanitizeError(new Error(chunk.error.message))}`
+                                    error: `Synthesis failed: ${handleOpenRouterError(new Error(chunk.error.message))}`
                                 });
                                 break;
                             }
@@ -285,7 +262,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                             content: synthesizedContent
                         });
                     } catch (error) {
-                        const errorMessage = sanitizeError(error);
+                        const errorMessage = handleOpenRouterError(error);
                         sendEvent(controller, { type: 'error', error: errorMessage });
                     }
 
@@ -293,7 +270,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                     controller.close();
                     generationLock.release(sessionId);
                 } catch (error) {
-                    const errorMessage = sanitizeError(error);
+                    const errorMessage = handleOpenRouterError(error);
                     sendEvent(controller, { type: 'error', error: errorMessage });
                     controller.close();
                     generationLock.release(sessionId);
@@ -310,7 +287,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         generationLock.release(sessionId);
         console.error('Generation error:', error);
         return Response.json(
-            { error: sanitizeError(error) },
+            { error: handleOpenRouterError(error) },
             { status: 500 }
         );
     }

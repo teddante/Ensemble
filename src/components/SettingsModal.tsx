@@ -45,7 +45,7 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
 
             // Close modal on success (refinement model is updated via state/effect immediately)
             onClose();
-        } catch (err) {
+        } catch {
             setError('An unexpected error occurred');
         } finally {
             setIsSaving(false);
