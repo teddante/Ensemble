@@ -30,9 +30,8 @@ export function createMockGenerateResponse(options: {
     models: string[];
     prompt: string;
     includeError?: string; // Model ID that should error
-    delayMs?: number; // Delay between chunks
 }): string {
-    const { models, prompt, includeError, delayMs = 0 } = options;
+    const { models, includeError } = options;
     let response = '';
 
     // Generate responses for each model
@@ -81,16 +80,43 @@ export function createMockGenerateResponse(options: {
 }
 
 /**
- * Mock models response
+ * Mock models response - Include DEFAULT_SELECTED_MODELS IDs
+ * to ensure settings validation doesn't filter them out
  */
 export const MOCK_MODELS = [
+    // These match DEFAULT_SELECTED_MODELS to ensure they're pre-selected
+    {
+        id: 'anthropic/claude-3.5-sonnet',
+        name: 'Claude 3.5 Sonnet',
+        provider: 'Anthropic',
+        contextWindow: 200000,
+        pricing: { prompt: 0.003, completion: 0.015 },
+        description: 'Most intelligent Claude model'
+    },
+    {
+        id: 'openai/gpt-4o',
+        name: 'GPT-4o',
+        provider: 'OpenAI',
+        contextWindow: 128000,
+        pricing: { prompt: 0.005, completion: 0.015 },
+        description: 'OpenAI flagship multimodal model'
+    },
+    {
+        id: 'google/gemini-2.0-flash-exp:free',
+        name: 'Gemini 2.0 Flash',
+        provider: 'Google',
+        contextWindow: 32768,
+        pricing: { prompt: 0.0, completion: 0.0 },
+        description: 'Google latest experimental model'
+    },
+    // Additional models for multi-model tests
     {
         id: 'openai/gpt-4',
         name: 'GPT-4',
         provider: 'OpenAI',
         contextWindow: 8192,
         pricing: { prompt: 0.03, completion: 0.06 },
-        description: 'Test model 1'
+        description: 'OpenAI GPT-4'
     },
     {
         id: 'anthropic/claude-3-opus',
@@ -98,15 +124,7 @@ export const MOCK_MODELS = [
         provider: 'Anthropic',
         contextWindow: 200000,
         pricing: { prompt: 0.015, completion: 0.075 },
-        description: 'Test model 2'
-    },
-    {
-        id: 'google/gemini-pro',
-        name: 'Gemini Pro',
-        provider: 'Google',
-        contextWindow: 32768,
-        pricing: { prompt: 0.00025, completion: 0.0005 },
-        description: 'Test model 3'
+        description: 'Claude 3 Opus'
     }
 ];
 
@@ -119,6 +137,7 @@ export const test = base.extend<{
         mockGenerate: (options?: { includeError?: string }) => Promise<void>;
         mockApiKeyExists: () => Promise<void>;
         mockApiKeyNotExists: () => Promise<void>;
+        setupAllMocks: () => Promise<void>;
     };
 }>({
     mockApi: async ({ page }, use) => {
@@ -217,6 +236,15 @@ export const test = base.extend<{
                     }
                 });
             },
+
+            /**
+             * Setup all mocks for a standard authenticated test
+             */
+            async setupAllMocks() {
+                await mockApi.mockModels();
+                await mockApi.mockApiKeyExists();
+                await mockApi.mockGenerate();
+            },
         };
 
         await use(mockApi);
@@ -227,10 +255,16 @@ export { expect };
 
 /**
  * Helper: Select a model by name (clicks the model chip button)
+ * Uses aria-label for exact matching to avoid 'GPT-4' matching 'GPT-4o'
  */
 export async function selectModel(page: Page, modelName: string): Promise<void> {
-    // Find the button with the model name that is NOT already selected
-    const modelButton = page.locator('.model-chip').filter({ hasText: modelName }).first();
+    // Wait for the model chips to be loaded
+    await expect(page.locator('.model-chip').first()).toBeVisible({ timeout: 10000 });
+
+    // Find the button using aria-label which contains the exact model name
+    // aria-label format is "Select {modelName}" or "Deselect {modelName}"
+    const modelButton = page.locator(`button.model-chip[aria-label$="${modelName}"]`).first();
+    await expect(modelButton).toBeVisible({ timeout: 5000 });
     await modelButton.click();
 }
 
@@ -253,20 +287,51 @@ export async function waitForGeneration(page: Page): Promise<void> {
 }
 
 /**
- * Helper: Ensure the settings modal is closed (for tests with API key mocked)
- * This handles the race condition where modal may briefly appear before API response
+ * Helper: Navigate to page and wait for it to be fully ready
+ * Uses a simple and robust approach
  */
-export async function ensureModalClosed(page: Page): Promise<void> {
-    // Check if modal is visible
-    const isModalVisible = await page.locator('.modal-overlay').isVisible();
+export async function navigateAndWaitForReady(page: Page): Promise<void> {
+    // Navigate to the page and wait for key API responses
+    await Promise.all([
+        page.waitForResponse(resp => resp.url().includes('/api/key') && resp.request().method() === 'GET', { timeout: 15000 }),
+        page.waitForResponse(resp => resp.url().includes('/api/models'), { timeout: 15000 }),
+        page.goto('/'),
+    ]);
 
-    if (isModalVisible) {
-        // If modal is visible, close it by clicking the close button
-        try {
-            await page.locator('.modal-close').click({ timeout: 2000 });
-            await expect(page.locator('.modal-overlay')).toBeHidden({ timeout: 5000 });
-        } catch {
-            // Modal might have closed on its own or not be interactable
-        }
+    // Wait for the model selector to be visible - this indicates the page is loaded
+    await expect(page.locator('.model-selector')).toBeVisible({ timeout: 15000 });
+
+    // Wait a moment for React state to settle
+    await page.waitForTimeout(500);
+
+    // Close modal if it's open (race condition handling)
+    const modalVisible = await page.locator('.modal-overlay').isVisible();
+    if (modalVisible) {
+        // Click the close button
+        await page.locator('.modal-close').click();
+        await expect(page.locator('.modal-overlay')).toBeHidden({ timeout: 5000 });
     }
+
+    // Wait for model chips to be rendered
+    await expect(page.locator('.model-chip').first()).toBeVisible({ timeout: 10000 });
+}
+
+/**
+ * Helper: Navigate and wait for the API key check to complete
+ * For tests that need to verify the modal behavior
+ */
+export async function navigateWithKeyCheck(page: Page): Promise<void> {
+    // Navigate and wait for key response
+    await Promise.all([
+        page.waitForResponse(resp => resp.url().includes('/api/key') && resp.request().method() === 'GET', { timeout: 10000 }),
+        page.goto('/'),
+    ]);
+
+    await page.waitForLoadState('networkidle');
+
+    // Wait for the page to fully render
+    await expect(page.locator('.model-selector')).toBeVisible({ timeout: 15000 });
+
+    // Wait longer for React state to settle before checking modal
+    await page.waitForTimeout(1000);
 }
