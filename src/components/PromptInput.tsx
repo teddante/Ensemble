@@ -60,6 +60,7 @@ export function PromptInput({ onSubmit, onCancel, isLoading, disabled, initialVa
 
         // Call onSubmit
         onSubmit(prompt.trim());
+        setPrompt(''); // Clear input for next chat message
 
         // Reset submitting state after a short delay to prevent rapid clicks
         debounceRef.current = setTimeout(() => {

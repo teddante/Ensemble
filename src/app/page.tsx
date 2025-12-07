@@ -7,9 +7,8 @@ import { Header } from '@/components/Header';
 import { SettingsModal } from '@/components/SettingsModal';
 import { PromptInput } from '@/components/PromptInput';
 import { ModelSelector } from '@/components/ModelSelector';
-import { ResponsePanel } from '@/components/ResponsePanel';
-import { SynthesizedResponse } from '@/components/SynthesizedResponse';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ChatMessage } from '@/components/ChatMessage';
 import { useModels } from '@/hooks/useModels';
 import { useSettings } from '@/hooks/useSettings';
 import { ModelResponse, StreamEvent } from '@/types';
@@ -39,10 +38,11 @@ export default function Home() {
   const [responses, setResponses] = useState<ModelResponse[]>([]);
   const [synthesizedContent, setSynthesizedContent] = useState('');
   const [truncatedModels, setTruncatedModels] = useState<string[]>([]);
-  const [prompt, setPrompt] = useState(''); // Need to track prompt for saving
+  const [prompt, setPrompt] = useState(''); // Need to track prompt for saving/displaying active state
   const [error, setError] = useState<string | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Use a ref to store authoritative state for history saving (fixes race condition)
   const generationStateRef = useRef<{
@@ -147,6 +147,12 @@ export default function Home() {
           generationStateRef.current.responses,
           generationStateRef.current.synthesizedContent
         );
+
+        // Clear transient state so it moves to chat history
+        setPrompt('');
+        setResponses([]);
+        setSynthesizedContent('');
+        generationStateRef.current = { responses: [], synthesizedContent: '' };
         break;
     }
   }, [addToHistory, settings]);
@@ -157,6 +163,11 @@ export default function Home() {
       setIsSettingsOpen(true);
     }
   }, [hasApiKey]);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [history, synthesizedContent, responses, prompt]);
 
   // Validate user-selected models when models are loaded
   useEffect(() => {
@@ -336,13 +347,18 @@ export default function Home() {
   }, [isGenerating, handleCancel]);
 
 
-
   const handleLoadHistory = (item: HistoryItem) => {
-    // Restore state
+    // Restoring legacy behavior: just duplicate the prompt to active state for now
+    // In chat interface, this is akin to "Copy to composer" or "Retry"
     setPrompt(item.prompt);
+    // Don't restore the response/content to active state unless we want to "edit" it?
+    // Current app behavior was "restore view".
+    // Since we now show history inline, maybe this just sets the prompt input?
+    // Let's stick to setting prompt and scrolling to bottom.
+    // If we set responses/synthesizedContent, it will show up as a duplicate "Active" message at the bottom.
+    // Let's do that for now to preserve "Restore" capability behavior, user can then "Regenerate" if they want.
     setResponses(item.responses);
     setSynthesizedContent(item.synthesizedContent);
-    // Sync ref
     generationStateRef.current = {
       responses: item.responses,
       synthesizedContent: item.synthesizedContent
@@ -363,79 +379,125 @@ export default function Home() {
         onOpenHistory={() => setIsHistoryOpen(true)}
       />
 
-      <main className="main-content">
-        <PromptInput
-          onSubmit={handleGenerate}
-          onCancel={handleCancel}
-          isLoading={isGenerating}
-          disabled={!hasApiKey}
-          initialValue={prompt}
-        />
+      <main className="main-content chat-scroll-area">
+        {/* Top Configuration Area */}
+        <div className="chat-view-main">
+          <ModelSelector models={models} isLoading={isLoadingModels || isValidating} />
 
-        <ModelSelector models={models} isLoading={isLoadingModels || isValidating} />
-
-        {/* Removed models warning */}
-        {removedModelsWarning && (
-          <div
-            className="prompt-warning"
-            style={{
-              marginBottom: '1.5rem',
-              background: 'rgba(255, 100, 50, 0.1)',
-              borderColor: 'rgba(255, 100, 50, 0.5)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              gap: '1rem'
-            }}
-          >
-            <span>⚠️ {removedModelsWarning}</span>
-            <button
-              onClick={dismissRemovedModelsWarning}
+          {/* Notifications / Errors */}
+          {removedModelsWarning && (
+            <div
+              className="prompt-warning"
               style={{
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '1rem',
-                color: 'inherit',
-                opacity: 0.7,
-                padding: '0 0.25rem',
-                lineHeight: 1
+                marginBottom: '1.5rem',
+                background: 'rgba(255, 100, 50, 0.1)',
+                borderColor: 'rgba(255, 100, 50, 0.5)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                gap: '1rem'
               }}
-              aria-label="Dismiss notification"
             >
-              ×
-            </button>
+              <span>⚠️ {removedModelsWarning}</span>
+              <button
+                onClick={dismissRemovedModelsWarning}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '1rem',
+                  color: 'inherit',
+                  opacity: 0.7,
+                  padding: '0 0.25rem',
+                  lineHeight: 1
+                }}
+                aria-label="Dismiss notification"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {error && (
+            <div className="prompt-warning" style={{ marginBottom: '1.5rem' }}>
+              {error}
+            </div>
+          )}
+
+          {storageWarning && (
+            <div className="prompt-warning" style={{ marginBottom: '1.5rem', background: 'rgba(255, 170, 0, 0.1)', borderColor: 'rgba(255, 170, 0, 0.5)' }}>
+              ⚠️ {storageWarning}
+            </div>
+          )}
+
+          {/* Chat Messages Stream */}
+          <div className="chat-stream">
+            {/* Historical Messages */}
+            {history.slice().reverse().map((item) => (
+              <div key={item.id}>
+                <ChatMessage
+                  role="user"
+                  content={item.prompt}
+                  timestamp={item.timestamp}
+                />
+                <ChatMessage
+                  role="assistant"
+                  content={item.synthesizedContent}
+                  responses={item.responses}
+                  models={models}
+                  timestamp={item.timestamp}
+                />
+              </div>
+            ))}
+
+            {/* Active / Pending Message */}
+            {(prompt || isGenerating || synthesizedContent) && (
+              <div className="active-generation">
+                <ChatMessage
+                  role="user"
+                  content={prompt}
+                />
+                <ChatMessage
+                  role="assistant"
+                  content={synthesizedContent}
+                  responses={responses}
+                  models={models}
+                  isStreaming={isSynthesizing}
+                  isGenerating={isGenerating}
+                  truncatedModels={truncatedModels}
+                />
+              </div>
+            )}
+
+            {/* Empty State / Placeholder if no history and no active prompt */}
+            {history.length === 0 && !prompt && !isGenerating && !synthesizedContent && (
+              <div style={{
+                textAlign: 'center',
+                color: 'var(--color-text-tertiary)',
+                marginTop: '4rem',
+                padding: '2rem'
+              }}>
+                <p>Select your team of models above and ask a question to get started.</p>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
           </div>
-        )}
-
-        {error && (
-          <div className="prompt-warning" style={{ marginBottom: '1.5rem' }}>
-            {error}
-          </div>
-        )}
-
-        {storageWarning && (
-          <div className="prompt-warning" style={{ marginBottom: '1.5rem', background: 'rgba(255, 170, 0, 0.1)', borderColor: 'rgba(255, 170, 0, 0.5)' }}>
-            ⚠️ {storageWarning}
-          </div>
-        )}
-
-        {/* Show synthesis if there is content OR if we are generating */}
-        {(synthesizedContent || isGenerating) && (
-          <ErrorBoundary>
-            <SynthesizedResponse
-              content={synthesizedContent}
-              isStreaming={isSynthesizing}
-              isGenerating={isGenerating}
-              truncatedModels={truncatedModels}
-            />
-          </ErrorBoundary>
-        )}
-
-        <ErrorBoundary>
-          <ResponsePanel responses={responses} models={models} />
-        </ErrorBoundary>
+        </div>
       </main>
+
+      {/* Fixed Footer Input */}
+      <footer className="chat-footer">
+        <div className="chat-input-wrapper footer-prompt-form">
+          <PromptInput
+            onSubmit={handleGenerate}
+            onCancel={handleCancel}
+            isLoading={isGenerating}
+            disabled={!hasApiKey}
+            initialValue="" // Always clear input (we track active prompt in page state)
+          />
+        </div>
+      </footer>
 
       <SettingsModal
         isOpen={isSettingsOpen}
