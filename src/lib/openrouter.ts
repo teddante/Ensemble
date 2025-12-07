@@ -1,6 +1,6 @@
 // OpenRouter API client using the official SDK
 import { OpenRouter } from '@openrouter/sdk';
-import { ReasoningParams } from '@/types';
+import { ReasoningParams, Message } from '@/types';
 import { OpenRouterUsage, OpenRouterDelta } from '@/types/openrouter.types';
 import { MAX_SYNTHESIS_CHARS, MAX_RETRIES, INITIAL_RETRY_DELAY_MS, REQUEST_TIMEOUT_MS } from '@/lib/constants';
 
@@ -48,6 +48,7 @@ export function createOpenRouterClient(apiKey: string): OpenRouter {
 
 export interface StreamOptions {
     prompt: string;
+    messages?: Message[];
     model: string;
     apiKey: string;
     reasoning?: ReasoningParams;
@@ -60,6 +61,7 @@ export interface StreamOptions {
 
 export async function streamModelResponse({
     prompt,
+    messages,
     model,
     apiKey,
     reasoning,
@@ -80,6 +82,11 @@ export async function streamModelResponse({
 
     let lastError: Error | null = null;
 
+    // Prepare messages for chat completion
+    const chatMessages = messages && messages.length > 0
+        ? messages
+        : [{ role: 'user', content: prompt }];
+
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         // Check if already aborted
         if (signal?.aborted) {
@@ -94,7 +101,7 @@ export async function streamModelResponse({
             const stream = await client.chat.send(
                 {
                     model,
-                    messages: [{ role: 'user', content: prompt }],
+                    messages: chatMessages as any[],
                     reasoning: reasoning,
                     stream: true,
                     // Use snake_case for OpenAI compatibility

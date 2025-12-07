@@ -246,6 +246,22 @@ export default function Home() {
     // Create abort controller
     abortControllerRef.current = new AbortController();
 
+    // Construct message history including current prompt
+    const messages: { role: 'user' | 'assistant'; content: string }[] = [];
+
+    // Add historical messages from current session
+    // Iterate in reverse since history is stored newest-first but we need oldest-first for context
+    for (let i = currentSessionHistory.length - 1; i >= 0; i--) {
+      const item = currentSessionHistory[i];
+      messages.push({ role: 'user', content: item.prompt });
+      if (item.synthesizedContent) {
+        messages.push({ role: 'assistant', content: item.synthesizedContent });
+      }
+    }
+
+    // Add current prompt
+    messages.push({ role: 'user', content: newPrompt });
+
     try {
       const response = await fetch('/api/generate', {
         method: 'POST',
@@ -255,6 +271,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           prompt: newPrompt,
+          messages,
           models: settings.selectedModels,
           refinementModel: settings.refinementModel,
         }),

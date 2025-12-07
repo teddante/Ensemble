@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { OpenRouter } from '@openrouter/sdk';
 import { validatePrompt, validateApiKey, validateModels } from '@/lib/validation';
 import { createSynthesisPrompt, streamModelResponse as libStreamModelResponse, validateSynthesisContext } from '@/lib/openrouter';
-import { StreamEvent, ReasoningParams } from '@/types';
+import { StreamEvent, ReasoningParams, Message } from '@/types';
 import { generateRateLimiter, getClientIdentifier } from '@/lib/rateLimit';
 import { generationLock, getSessionIdentifier } from '@/lib/sessionLock';
 import { getApiKeyFromCookie } from '@/app/api/key/route';
@@ -28,11 +28,10 @@ function sendEvent(controller: ReadableStreamDefaultController, event: StreamEve
     controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`));
 }
 
-
-
 async function generateSingleModelResponse(
     model: string,
     prompt: string,
+    messages: Message[] | undefined,
     apiKey: string,
     reasoning: ReasoningParams | undefined,
     controller: ReadableStreamDefaultController,
@@ -46,6 +45,7 @@ async function generateSingleModelResponse(
     try {
         await libStreamModelResponse({
             prompt,
+            messages,
             model,
             apiKey,
             reasoning,
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         }
 
         const body = await request.json();
-        const { prompt, models, refinementModel, reasoning } = body;
+        const { prompt, messages, models, refinementModel, reasoning } = body;
 
         // Get API key from Cookie only (secure storage)
         const apiKey: string | null = await getApiKeyFromCookie();
@@ -178,6 +178,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                         generateSingleModelResponse(
                             model,
                             promptValidation.sanitized!,
+                            messages,
                             apiKeyValidation.sanitized!,
                             reasoning,
                             controller,

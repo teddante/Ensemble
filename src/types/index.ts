@@ -42,6 +42,11 @@ export interface ReasoningParams {
     enabled?: boolean;
 }
 
+export interface Message {
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+}
+
 export interface ModelResponse {
     modelId: string;
     content: string;
@@ -52,6 +57,7 @@ export interface ModelResponse {
 
 export interface GenerationRequest {
     prompt: string;
+    messages?: Message[];
     models: string[];
     apiKey: string;
     refinementModel?: string;
