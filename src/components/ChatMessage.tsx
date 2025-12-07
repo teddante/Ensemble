@@ -29,7 +29,7 @@ export function ChatMessage({
         return (
             <div className="chat-message user-message">
                 <div className="message-content user-content">
-                    <MarkdownRenderer content={content} />
+                    <MarkdownRenderer content={content} forceNewlines={true} />
                 </div>
                 <div className="message-avatar user-avatar">
                     <User size={20} />

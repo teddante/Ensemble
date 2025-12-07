@@ -7,11 +7,14 @@ import rehypeSanitize from 'rehype-sanitize';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
+import remarkBreaks from 'remark-breaks';
+
 interface MarkdownRendererProps {
     content: string;
+    forceNewlines?: boolean;
 }
 
-export function MarkdownRenderer({ content }: MarkdownRendererProps) {
+export function MarkdownRenderer({ content, forceNewlines = false }: MarkdownRendererProps) {
     const markdownComponents = useMemo(() => ({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         code({ inline, className, children, ...props }: any) {
@@ -110,7 +113,10 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
     return (
         <div className="markdown-content">
             <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={[
+                    remarkGfm,
+                    ...(forceNewlines ? [remarkBreaks] : [])
+                ]}
                 rehypePlugins={[rehypeSanitize]}
                 components={markdownComponents}
             >
