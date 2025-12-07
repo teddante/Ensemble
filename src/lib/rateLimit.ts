@@ -1,129 +1,64 @@
-/**
- * Token Bucket Rate Limiter for Edge Runtime
- * 
- * IMPORTANT: SCALABILITY LIMITATIONS
- * ===================================
- * This implementation uses in-memory storage (Map) which has the following limitations:
- * 
- * 1. NOT DURABLE: Rate limit state is lost on server restart
- * 2. NOT DISTRIBUTED: Each Edge Function instance has its own Map
- * 3. INEFFECTIVE in multi-instance deployments (Vercel, Cloudflare Workers, etc.)
- * 
- * For production with multiple instances, migrate to a distributed solution.
- * 
- * RECOMMENDED: Upstash Redis Rate Limiting
- * =========================================
- * 1. Install: npm install @upstash/ratelimit @upstash/redis
- * 2. Create Upstash Redis database at https://upstash.com
- * 3. Add env vars: UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
- * 4. Replace this implementation with:
- * 
- *    import { Ratelimit } from "@upstash/ratelimit";
- *    import { Redis } from "@upstash/redis";
- *    
- *    const redis = new Redis({
- *      url: process.env.UPSTASH_REDIS_REST_URL!,
- *      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
- *    });
- *    
- *    export const generateRateLimiter = new Ratelimit({
- *      redis,
- *      limiter: Ratelimit.slidingWindow(10, "1 m"),
- *      analytics: true,
- *    });
- * 
- * The Upstash Ratelimit API is similar to this implementation's check() method.
- */
-
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+import { GENERATE_RATE_LIMIT, KEY_RATE_LIMIT, MODELS_RATE_LIMIT } from './constants';
 import { hashString } from './utils';
 
-interface Bucket {
-    tokens: number;
-    lastRefill: number;
-}
+// Initialize Redis client
+// We use a lazy initialization pattern or global singleton to ensure connection reuse
+const redis = new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL || '',
+    token: process.env.UPSTASH_REDIS_REST_TOKEN || '',
+});
 
+/**
+ * Wrapper for Upstash Ratelimit to maintain existing API compatibility
+ */
 export class RateLimiter {
-    private buckets: Map<string, Bucket> = new Map();
-    private maxTokens: number;
-    private refillRate: number; // tokens per second
-    private cleanupIntervalMs: number;
-    private cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
+    private limiter: Ratelimit;
 
-    constructor(maxTokens = 10, refillRate = 1) {
-        this.maxTokens = maxTokens;
-        this.refillRate = refillRate;
-        this.cleanupIntervalMs = 60000; // Cleanup every minute
+    constructor(maxTokens: number, refillRate: number) {
+        // Convert refillRate (tokens/sec) to window duration
+        // Upstash uses sliding window. 
+        // If refillRate is 1 token/sec, and maxTokens is 10, 
+        // we can approximate this as a window of "maxTokens" requests every "maxTokens/refillRate" seconds
+        // But simpler is: X requests per 60s
 
-        // Periodic cleanup of expired buckets
-        // Note: In Edge runtime, this is fine as instances are short-lived
-        if (typeof setInterval !== 'undefined') {
-            this.cleanupIntervalId = setInterval(() => this.cleanup(), this.cleanupIntervalMs);
-        }
+        // Example: 50 requests per minute
+        // maxTokens = 50, window = 1 minute
+
+        const windowSeconds = maxTokens / refillRate;
+
+        this.limiter = new Ratelimit({
+            redis,
+            limiter: Ratelimit.slidingWindow(maxTokens, `${Math.ceil(windowSeconds)} s` as any),
+            analytics: true,
+            prefix: 'ensemble:ratelimit',
+        });
     }
 
     /**
-     * Destroy the rate limiter and clear cleanup interval
-     * Call this when shutting down the server gracefully
+     * Check if request is allowed
      */
-    destroy(): void {
-        if (this.cleanupIntervalId) {
-            clearInterval(this.cleanupIntervalId);
-            this.cleanupIntervalId = null;
-        }
-        this.buckets.clear();
-    }
-
-    private cleanup(): void {
-        const now = Date.now();
-        const maxAge = (this.maxTokens / this.refillRate) * 1000 * 2; // 2x time to full refill
-
-        for (const [key, bucket] of this.buckets.entries()) {
-            if (now - bucket.lastRefill > maxAge) {
-                this.buckets.delete(key);
-            }
-        }
-    }
-
-    private refillBucket(bucket: Bucket): Bucket {
-        const now = Date.now();
-        const timePassed = (now - bucket.lastRefill) / 1000;
-        const tokensToAdd = timePassed * this.refillRate;
-
-        return {
-            tokens: Math.min(this.maxTokens, bucket.tokens + tokensToAdd),
-            lastRefill: now,
-        };
-    }
-
     async check(identifier: string): Promise<{ success: boolean; remaining: number; retryAfter?: number }> {
-        let bucket = this.buckets.get(identifier);
+        try {
+            const result = await this.limiter.limit(identifier);
 
-        if (!bucket) {
-            bucket = { tokens: this.maxTokens, lastRefill: Date.now() };
-        } else {
-            bucket = this.refillBucket(bucket);
+            return {
+                success: result.success,
+                remaining: result.remaining,
+                retryAfter: result.reset ? Math.ceil((result.reset - Date.now()) / 1000) : undefined
+            };
+        } catch (error) {
+            console.error('Rate limit check failed:', error);
+            // Fail open if Redis is down
+            return { success: true, remaining: 1 };
         }
-
-        if (bucket.tokens >= 1) {
-            bucket.tokens -= 1;
-            this.buckets.set(identifier, bucket);
-            return { success: true, remaining: Math.floor(bucket.tokens) };
-        }
-
-        // Calculate time until next token is available
-        const retryAfter = Math.ceil((1 - bucket.tokens) / this.refillRate);
-        this.buckets.set(identifier, bucket);
-
-        return { success: false, remaining: 0, retryAfter };
     }
 
-    reset(identifier: string): void {
-        this.buckets.delete(identifier);
-    }
+    // No-op for API compatibility
+    destroy(): void { }
+    reset(identifier: string): void { }
 }
-
-// Global rate limiter instances
-import { GENERATE_RATE_LIMIT, KEY_RATE_LIMIT, MODELS_RATE_LIMIT } from './constants';
 
 // Generate: 50 requests per minute
 export const generateRateLimiter = new RateLimiter(GENERATE_RATE_LIMIT, GENERATE_RATE_LIMIT / 60);
@@ -133,10 +68,6 @@ export const keyRateLimiter = new RateLimiter(KEY_RATE_LIMIT, KEY_RATE_LIMIT / 6
 
 // Models list: 50 requests per minute
 export const modelsRateLimiter = new RateLimiter(MODELS_RATE_LIMIT, MODELS_RATE_LIMIT / 60);
-
-// Note: In Edge runtime, instances are short-lived per request
-// The unref'd intervals don't block process exit
-// For Node.js environments, you may want to call destroy() on graceful shutdown
 
 // Helper to get client identifier from request
 export function getClientIdentifier(request: Request): string {
@@ -155,4 +86,3 @@ export function getClientIdentifier(request: Request): string {
     const ua = request.headers.get('user-agent') || 'unknown';
     return `ua-${hashString(ua)}`;
 }
-

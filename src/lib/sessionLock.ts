@@ -1,151 +1,102 @@
 /**
- * Session Lock Manager for Preventing Concurrent Generation Requests
+ * Distributed Session Lock Manager using Upstash Redis
  * 
- * IMPORTANT: SCALABILITY LIMITATIONS
- * ===================================
- * This implementation uses in-memory storage (Map) which has the following limitations:
- * 
- * 1. NOT DURABLE: Lock state is lost on server restart
- * 2. NOT DISTRIBUTED: Each Edge Function instance has its own Map
- * 3. INEFFECTIVE in multi-instance deployments (Vercel, Cloudflare Workers, etc.)
- * 
- * For production with multiple instances, migrate to a distributed locking solution.
- * 
- * RECOMMENDED: Upstash Redis Distributed Locking
- * ===============================================
- * 1. Install: npm install @upstash/redis
- * 2. Create Upstash Redis database at https://upstash.com
- * 3. Add env vars: UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
- * 4. Replace this implementation with Redis SET NX pattern:
- * 
- *    import { Redis } from "@upstash/redis";
- *    
- *    const redis = new Redis({
- *      url: process.env.UPSTASH_REDIS_REST_URL!,
- *      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
- *    });
- *    
- *    export async function acquire(sessionId: string, durationMs = 300000): Promise<boolean> {
- *      const result = await redis.set(`lock:${sessionId}`, "1", {
- *        nx: true, // Only set if not exists
- *        px: durationMs, // Expiry in milliseconds
- *      });
- *      return result === "OK";
- *    }
- *    
- *    export async function release(sessionId: string): Promise<void> {
- *      await redis.del(`lock:${sessionId}`);
- *    }
- * 
- * This provides atomic, distributed locking across all instances.
+ * Provides robust locking across serverless/Edge instances to prevent
+ * concurrent generation requests for the same session.
  */
 
+import { Redis } from '@upstash/redis';
 import { hashString } from './utils';
 
-interface LockEntry {
-    acquiredAt: number;
-    expiresAt: number;
-}
+// Initialize Redis client
+const redis = new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL || '',
+    token: process.env.UPSTASH_REDIS_REST_TOKEN || '',
+});
 
 export class SessionLockManager {
-    private locks: Map<string, LockEntry> = new Map();
     private defaultDuration: number;
-    private cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
 
     constructor(defaultDurationMs = 5 * 60 * 1000) { // 5 minute default
         this.defaultDuration = defaultDurationMs;
-
-        // Periodic cleanup of expired locks
-        // Note: In Edge runtime, this is fine as instances are short-lived
-        if (typeof setInterval !== 'undefined') {
-            this.cleanupIntervalId = setInterval(() => this.cleanup(), 30000); // Every 30 seconds
-        }
     }
+
+    // No-op for API compatibility
+    destroy(): void { }
 
     /**
-     * Destroy the lock manager and clear cleanup interval
-     * Call this when shutting down the server gracefully
-     */
-    destroy(): void {
-        if (this.cleanupIntervalId) {
-            clearInterval(this.cleanupIntervalId);
-            this.cleanupIntervalId = null;
-        }
-        this.locks.clear();
-    }
-
-    private cleanup(): void {
-        const now = Date.now();
-        for (const [key, entry] of this.locks.entries()) {
-            if (now > entry.expiresAt) {
-                this.locks.delete(key);
-            }
-        }
-    }
-
-    /**
-     * Attempt to acquire a lock for the given session
+     * Attempt to acquire a lock for the given session using Redis SET NX
      * @returns true if lock was acquired, false if already locked
      */
-    acquire(sessionId: string, durationMs?: number): boolean {
-        const now = Date.now();
-        const existing = this.locks.get(sessionId);
+    async acquire(sessionId: string, durationMs?: number): Promise<boolean> {
+        try {
+            const key = `ensemble:lock:${sessionId}`;
+            const duration = durationMs ?? this.defaultDuration;
 
-        // Check if there's an existing valid lock
-        if (existing && now < existing.expiresAt) {
-            return false;
+            // SET key "1" NX PX duration
+            // NX: Only set if not exists
+            // PX: Expiry in milliseconds
+            const result = await redis.set(key, "1", {
+                nx: true,
+                px: duration,
+            });
+
+            return result === "OK";
+        } catch (error) {
+            console.error('Session lock acquire failed:', error);
+            // Fail open if Redis is down (allow request) behavior is debatable, 
+            // but failing closed (blocking user) is worse for UX during outage.
+            // However, failing open risks data corruption.
+            // Given this is a UX feature to prevent confused history, failing open is safer options.
+            return true;
         }
-
-        // Acquire lock
-        this.locks.set(sessionId, {
-            acquiredAt: now,
-            expiresAt: now + (durationMs ?? this.defaultDuration),
-        });
-
-        return true;
     }
 
     /**
      * Release a lock for the given session
      */
-    release(sessionId: string): void {
-        this.locks.delete(sessionId);
+    async release(sessionId: string): Promise<void> {
+        try {
+            const key = `ensemble:lock:${sessionId}`;
+            await redis.del(key);
+        } catch (error) {
+            console.error('Session lock release failed:', error);
+        }
     }
 
     /**
      * Check if a session is currently locked
      */
-    isLocked(sessionId: string): boolean {
-        const entry = this.locks.get(sessionId);
-        if (!entry) return false;
-
-        const now = Date.now();
-        if (now > entry.expiresAt) {
-            this.locks.delete(sessionId);
+    async isLocked(sessionId: string): Promise<boolean> {
+        try {
+            const key = `ensemble:lock:${sessionId}`;
+            const exists = await redis.exists(key);
+            return exists === 1;
+        } catch (_error) {
             return false;
         }
-
-        return true;
     }
 
     /**
      * Get remaining lock time in milliseconds
+     * Note: Redis TTL command returns seconds
      */
-    getRemainingTime(sessionId: string): number {
-        const entry = this.locks.get(sessionId);
-        if (!entry) return 0;
+    async getRemainingTime(sessionId: string): Promise<number> {
+        try {
+            const key = `ensemble:lock:${sessionId}`;
+            const ttlSeconds = await redis.ttl(key);
 
-        const remaining = entry.expiresAt - Date.now();
-        return Math.max(0, remaining);
+            if (ttlSeconds < 0) return 0; // -1 (no expiry) or -2 (not found)
+
+            return ttlSeconds * 1000;
+        } catch (_error) {
+            return 0;
+        }
     }
 }
 
 // Global session lock manager for generation requests
 export const generationLock = new SessionLockManager();
-
-// Note: In Edge runtime, instances are short-lived per request
-// The unref'd intervals don't block process exit
-// For Node.js environments, you may want to call destroy() on graceful shutdown
 
 // Helper to get session identifier from request
 export function getSessionIdentifier(request: Request): string {
@@ -172,4 +123,3 @@ export function getSessionIdentifier(request: Request): string {
     const ua = request.headers.get('user-agent') || 'unknown';
     return `ua-${hashString(ua)}`;
 }
-
