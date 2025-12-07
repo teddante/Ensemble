@@ -8,7 +8,7 @@ import { Header } from '@/components/Header';
 import { SettingsModal } from '@/components/SettingsModal';
 import { PromptInput } from '@/components/PromptInput';
 import { ModelSelector } from '@/components/ModelSelector';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
+// import { ErrorBoundary } from '@/components/ErrorBoundary'; // Removed unused import
 import { ChatMessage } from '@/components/ChatMessage';
 import { PromptInspector } from '@/components/PromptInspector';
 import { useModels } from '@/hooks/useModels';
@@ -58,6 +58,14 @@ export default function Home() {
     synthesizedContent: string;
     synthesisPromptData?: { messages: Message[], modelId: string };
   }>({ responses: [], synthesizedContent: '' });
+
+  // Filter history for current session
+  // Note: For legacy items without sessionId, they will effectively be hidden unless we handle undefined.
+  // For now, new items will have sessionId.
+  const currentSessionHistory = history.filter(item =>
+    item.sessionId === currentSessionId
+  );
+
 
   const handleStreamEvent = useCallback((event: StreamEvent, originalPrompt: string) => {
     // Helper to update both ref and state
@@ -423,7 +431,7 @@ export default function Home() {
       abortControllerRef.current = null;
     }
 
-  }, [hasApiKey, settings.selectedModels, settings.refinementModel, handleStreamEvent, models]);
+  }, [hasApiKey, settings.selectedModels, settings.refinementModel, handleStreamEvent, models, currentSessionHistory, settings.contextWarningThreshold, settings.maxSynthesisChars, settings.systemPrompt]);
 
   const handleCancel = useCallback(() => {
     if (abortControllerRef.current) {
@@ -521,12 +529,7 @@ export default function Home() {
     }, 100);
   };
 
-  // Filter history for current session
-  // Note: For legacy items without sessionId, they will effectively be hidden unless we handle undefined.
-  // For now, new items will have sessionId.
-  const currentSessionHistory = history.filter(item =>
-    item.sessionId === currentSessionId
-  );
+
 
   return (
     <div className="app-container">

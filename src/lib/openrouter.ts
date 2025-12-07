@@ -101,11 +101,10 @@ export async function streamModelResponse({
             const stream = await client.chat.send(
                 {
                     model,
-                    messages: chatMessages as any[],
+                    messages: chatMessages,
                     reasoning: reasoning,
                     stream: true,
                     // Use snake_case for OpenAI compatibility
-                    // @ts-ignore - OpenRouter SDK types expect streamOptions but API supports stream_options
                     stream_options: { include_usage: true }
                 } as any,
                 { signal: combinedSignal }

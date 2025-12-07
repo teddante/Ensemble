@@ -10,19 +10,19 @@ describe('createSynthesisPrompt', () => {
 
         expect(prompt).toContain('Original User Prompt:');
         expect(prompt).toContain('"What is AI?"');
-        expect(prompt).toContain('--- Response 1 (from gpt-4) ---');
+        expect(prompt).toContain('--- Draft 1 ---');
         expect(prompt).toContain('AI is artificial intelligence.');
-        expect(prompt).toContain('Synthesized Response:');
+        expect(prompt).toContain('Final Response:');
     });
 
     it('should truncate extremely long responses', () => {
         const longContent = 'a'.repeat(10000);
         const prompt = createSynthesisPrompt('Long prompt', [
             { modelId: 'verbose-model', content: longContent }
-        ]);
+        ], 1000);
 
         expect(prompt).toContain('aaaaaaaa');
-        expect(prompt).toContain('[...Truncated for synthesis...]');
+        expect(prompt).toContain('[...Truncated...]');
         expect(prompt.length).toBeLessThan(longContent.length);
     });
 

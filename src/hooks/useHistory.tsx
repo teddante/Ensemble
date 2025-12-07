@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { ModelResponse } from '@/types';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { ModelResponse, Message } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { MAX_HISTORY_ITEMS } from '@/lib/constants';
 
@@ -16,7 +16,7 @@ export interface HistoryItem {
     synthesizedContent: string;
     modelNames?: Record<string, string>; // Map of model IDs to display names
     synthesisPromptData?: {
-        messages: any[];
+        messages: Message[];
         modelId: string;
     };
 }
@@ -24,20 +24,20 @@ export interface HistoryItem {
 const STORAGE_KEY = 'ensemble_history';
 
 export function useHistory() {
-    const [history, setHistory] = useState<HistoryItem[]>([]);
-    const [storageWarning, setStorageWarning] = useState<string | null>(null);
-
-    // Load history on mount
-    useEffect(() => {
-        try {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            if (stored) {
-                setHistory(JSON.parse(stored));
+    const [history, setHistory] = useState<HistoryItem[]>(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                if (stored) {
+                    return JSON.parse(stored);
+                }
+            } catch (error) {
+                console.error('Failed to load history:', error);
             }
-        } catch (error) {
-            console.error('Failed to load history:', error);
         }
-    }, []);
+        return [];
+    });
+    const [storageWarning, setStorageWarning] = useState<string | null>(null);
 
 
 
@@ -134,7 +134,7 @@ export function useHistory() {
         synthesizedContent: string,
         modelNames?: Record<string, string>, // Optional: map of model IDs to names
         sessionId?: string,
-        synthesisPromptData?: { messages: any[]; modelId: string }
+        synthesisPromptData?: { messages: Message[]; modelId: string }
     ) => {
         const newItem: HistoryItem = {
             id: uuidv4(),

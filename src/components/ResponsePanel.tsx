@@ -13,10 +13,6 @@ interface ResponsePanelProps {
 export function ResponsePanel({ responses, models, onInspectModel }: ResponsePanelProps) {
     const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
 
-    if (responses.length === 0) {
-        return null;
-    }
-
     const toggleExpand = useCallback((modelId: string) => {
         setExpandedModels(prev => {
             const next = new Set(prev);
@@ -28,6 +24,10 @@ export function ResponsePanel({ responses, models, onInspectModel }: ResponsePan
             return next;
         });
     }, []);
+
+    if (responses.length === 0) {
+        return null;
+    }
 
     const getModelName = (modelId: string): string => {
         const model = models.find(m => m.id === modelId);

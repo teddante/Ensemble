@@ -132,6 +132,10 @@ describe('ModelSelector', () => {
         // Expand first
         fireEvent.click(screen.getByText('Add more models'));
 
+        // Expand OpenAI group
+        const openAIHeader = screen.getByRole('button', { name: /OpenAI/i });
+        fireEvent.click(openAIHeader);
+
         // Find GPT-4o in the list and click it
         const gpt4Button = screen.getByRole('button', { name: /GPT-4o$/i });
         fireEvent.click(gpt4Button);

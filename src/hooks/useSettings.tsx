@@ -148,7 +148,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                     const data = await res.json();
                     return { success: false, error: data.error || 'Failed to delete key' };
                 }
-            } catch (error) {
+            } catch {
                 return { success: false, error: 'Network error' };
             }
         }
