@@ -2,7 +2,7 @@
 
 import React, { memo } from 'react';
 import { ChevronDown, ChevronUp, CheckCircle, XCircle, Loader2, Info } from 'lucide-react';
-import { ModelResponse } from '@/types';
+import { ModelResponse, Message } from '@/types';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface ResponseCardProps {
@@ -10,7 +10,7 @@ interface ResponseCardProps {
     modelName: string;
     isExpanded: boolean;
     onToggle: (modelId: string) => void;
-    onInspect?: (data: { messages: any[]; modelId: string }) => void;
+    onInspect?: (data: { messages: Message[]; modelId: string }) => void;
 }
 
 const ResponseCard = memo(function ResponseCard({

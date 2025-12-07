@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { ModelResponse, Model } from '@/types';
+import { ModelResponse, Model, Message } from '@/types';
 import { ResponseCard } from './ResponseCard';
 
 interface ResponsePanelProps {
     responses: ModelResponse[];
     models: Model[];
-    onInspectModel?: (data: { messages: any[]; modelId: string }) => void;
+    onInspectModel?: (data: { messages: Message[]; modelId: string }) => void;
 }
 
 export function ResponsePanel({ responses, models, onInspectModel }: ResponsePanelProps) {

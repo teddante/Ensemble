@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+@theme {
+  --color-background-secondary: var(--color-bg-secondary);
+  
+  --color-surface-primary: var(--color-surface);
+  --color-surface-secondary: var(--color-bg-tertiary);
+  --color-surface-tertiary: var(--color-bg-elevated);
+  --color-surface-elevated: var(--color-bg-elevated);
+  
+  --color-border: var(--color-border);
+  
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-tertiary: var(--color-text-tertiary);
+}
+
 :root {
   /* Color palette - Rich dark theme with purple/blue accents */
   --color-bg-primary: #0a0a0f;

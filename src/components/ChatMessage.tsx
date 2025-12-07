@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { ModelResponse, Model } from '@/types';
+import { ModelResponse, Model, Message } from '@/types';
 import { SynthesizedResponse } from './SynthesizedResponse';
 import { ResponsePanel } from './ResponsePanel';
 import { User, Sparkles, Info } from 'lucide-react';
@@ -14,8 +14,8 @@ interface ChatMessageProps {
     isGenerating?: boolean;
     timestamp?: number;
     truncatedModels?: string[];
-    onInspectPrompt?: (data: { messages: any[]; modelId: string }) => void;
-    synthesisPromptData?: { messages: any[]; modelId: string };
+    onInspectPrompt?: (data: { messages: Message[]; modelId: string }) => void;
+    synthesisPromptData?: { messages: Message[]; modelId: string };
 }
 
 export const ChatMessage = memo(function ChatMessage({
