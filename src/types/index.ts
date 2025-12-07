@@ -74,11 +74,13 @@ export interface StreamEvent {
     | 'synthesis_chunk'
     | 'synthesis_complete'
     | 'complete'
-    | 'error';
+    | 'error'
+    | 'warning';
     modelId?: string;
     content?: string;
     reasoning?: string; // Content for reasoning/thinking chunks
     error?: string;
+    warning?: string;
     tokens?: number;
 }
 
@@ -86,6 +88,8 @@ export interface Settings {
     apiKey: string;
     selectedModels: string[];
     refinementModel: string;
+    maxSynthesisChars: number;
+    contextWarningThreshold: number;
 }
 
 export const FALLBACK_MODELS: Model[] = [

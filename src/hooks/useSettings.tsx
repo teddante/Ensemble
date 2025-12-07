@@ -2,13 +2,14 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Settings, DEFAULT_SELECTED_MODELS, DEFAULT_REFINEMENT_MODEL } from '@/types';
-import { API_KEY_MASK } from '@/lib/constants';
+import { API_KEY_MASK, MAX_SYNTHESIS_CHARS } from '@/lib/constants';
 
 interface SettingsContextType {
     settings: Settings;
     updateApiKey: (key: string) => Promise<{ success: boolean; error?: string }>;
     updateSelectedModels: (models: string[]) => void;
     updateRefinementModel: (model: string) => void;
+    updateSettings: (newSettings: Partial<Settings>) => void;
     hasApiKey: boolean;
     isCheckingKey: boolean;
 }
@@ -23,7 +24,10 @@ function loadSettings(): Omit<Settings, 'apiKey'> & { apiKey: string } {
         return {
             apiKey: '',
             selectedModels: DEFAULT_SELECTED_MODELS,
+
             refinementModel: DEFAULT_REFINEMENT_MODEL,
+            maxSynthesisChars: MAX_SYNTHESIS_CHARS,
+            contextWarningThreshold: 0.8,
         };
     }
 
@@ -34,7 +38,10 @@ function loadSettings(): Omit<Settings, 'apiKey'> & { apiKey: string } {
             return {
                 apiKey: '', // Never load key from local storage anymore
                 selectedModels: parsed.selectedModels || DEFAULT_SELECTED_MODELS,
+
                 refinementModel: parsed.refinementModel || DEFAULT_REFINEMENT_MODEL,
+                maxSynthesisChars: parsed.maxSynthesisChars || MAX_SYNTHESIS_CHARS,
+                contextWarningThreshold: parsed.contextWarningThreshold || 0.8,
             };
         }
     } catch (error) {
@@ -44,7 +51,10 @@ function loadSettings(): Omit<Settings, 'apiKey'> & { apiKey: string } {
     return {
         apiKey: '',
         selectedModels: DEFAULT_SELECTED_MODELS,
+
         refinementModel: DEFAULT_REFINEMENT_MODEL,
+        maxSynthesisChars: MAX_SYNTHESIS_CHARS,
+        contextWarningThreshold: 0.8,
     };
 }
 
@@ -55,7 +65,10 @@ function saveSettings(settings: Settings): void {
         // Don't save apiKey to localStorage
         const safeSettings = {
             selectedModels: settings.selectedModels,
+
             refinementModel: settings.refinementModel,
+            maxSynthesisChars: settings.maxSynthesisChars,
+            contextWarningThreshold: settings.contextWarningThreshold,
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(safeSettings));
     } catch (error) {
@@ -67,7 +80,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const [settings, setSettings] = useState<Settings>({
         apiKey: '',
         selectedModels: DEFAULT_SELECTED_MODELS,
+
         refinementModel: DEFAULT_REFINEMENT_MODEL,
+        maxSynthesisChars: MAX_SYNTHESIS_CHARS,
+        contextWarningThreshold: 0.8,
     });
     const [hasApiKey, setHasApiKey] = useState(false);
     const [isCheckingKey, setIsCheckingKey] = useState(true);
@@ -165,13 +181,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         setSettings(prev => ({ ...prev, refinementModel: model }));
     };
 
+    const updateSettings = (newSettings: Partial<Settings>) => {
+        setSettings(prev => ({ ...prev, ...newSettings }));
+    };
+
     return (
         <SettingsContext.Provider
             value={{
                 settings,
                 updateApiKey,
                 updateSelectedModels,
+
                 updateRefinementModel,
+                updateSettings,
                 hasApiKey,
                 isCheckingKey,
             }}

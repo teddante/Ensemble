@@ -39,6 +39,7 @@ export default function Home() {
   const [responses, setResponses] = useState<ModelResponse[]>([]);
   const [synthesizedContent, setSynthesizedContent] = useState('');
   const [truncatedModels, setTruncatedModels] = useState<string[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]); // Array of warning messages
   const [prompt, setPrompt] = useState(''); // Need to track prompt for saving/displaying active state
   const [error, setError] = useState<string | null>(null);
 
@@ -139,6 +140,12 @@ export default function Home() {
         setIsSynthesizing(false);
         break;
 
+      case 'warning':
+        if (event.warning) {
+          setWarnings(prev => [...prev, event.warning!]);
+        }
+        break;
+
       case 'complete':
         setIsGenerating(false);
         setIsSynthesizing(false);
@@ -212,7 +219,9 @@ export default function Home() {
     setIsGenerating(true);
     setError(null);
     setSynthesizedContent('');
+    setSynthesizedContent('');
     setTruncatedModels([]);
+    setWarnings([]); // Clear warnings
     setIsSynthesizing(false);
 
     // Check for context window limits using accurate token estimation
@@ -274,6 +283,8 @@ export default function Home() {
           messages,
           models: settings.selectedModels,
           refinementModel: settings.refinementModel,
+          maxSynthesisChars: settings.maxSynthesisChars,
+          contextWarningThreshold: settings.contextWarningThreshold,
         }),
         signal: abortControllerRef.current.signal,
         credentials: 'include',
@@ -476,6 +487,22 @@ export default function Home() {
           {error && (
             <div className="prompt-warning" style={{ marginBottom: '1.5rem' }}>
               {error}
+            </div>
+          )}
+
+          {warnings.length > 0 && (
+            <div className="prompt-warning" style={{
+              marginBottom: '1.5rem',
+              background: 'rgba(234, 179, 8, 0.1)',
+              borderColor: 'rgba(234, 179, 8, 0.2)',
+              color: '#fbbf24'
+            }}>
+              {warnings.map((warning, index) => (
+                <div key={index} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <span>⚠️</span>
+                  <span>{warning}</span>
+                </div>
+              ))}
             </div>
           )}
 

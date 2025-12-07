@@ -219,7 +219,8 @@ export async function streamModelResponse({
 
 export function createSynthesisPrompt(
     originalPrompt: string,
-    modelResponses: { modelId: string; content: string }[]
+    modelResponses: { modelId: string; content: string }[],
+    maxSynthesisChars: number = MAX_SYNTHESIS_CHARS
 ): string {
     const validResponses = modelResponses.filter(r => r.content && !r.content.startsWith('Error:'));
 
@@ -244,8 +245,10 @@ Here are your internal drafts:
         // for a synthesis task without blowing up the context window of the synthesizer.
         let content = response.content;
 
-        if (content.length > MAX_SYNTHESIS_CHARS) {
-            content = content.slice(0, MAX_SYNTHESIS_CHARS) + '\n\n[...Truncated...]';
+
+
+        if (content.length > maxSynthesisChars) {
+            content = content.slice(0, maxSynthesisChars) + '\n\n[...Truncated...]';
         }
 
         synthesisPrompt += `--- Draft ${index + 1} ---
@@ -314,16 +317,19 @@ export interface SynthesisValidationResult {
 export function validateSynthesisContext(
     responses: { modelId: string; content: string }[],
     originalPrompt: string,
-    synthesisModelContextLimit: number = 32000
+    synthesisModelContextLimit: number = 32000,
+    maxSynthesisChars: number = MAX_SYNTHESIS_CHARS,
+    warningThreshold: number = 0.8
 ): SynthesisValidationResult {
     // Estimate tokens for original prompt
     const promptTokens = estimateTokens(originalPrompt);
 
     // Estimate tokens for each response (after truncation)
     let responseTokens = 0;
+
     for (const response of responses) {
-        const content = response.content.length > MAX_SYNTHESIS_CHARS
-            ? response.content.slice(0, MAX_SYNTHESIS_CHARS)
+        const content = response.content.length > maxSynthesisChars
+            ? response.content.slice(0, maxSynthesisChars)
             : response.content;
         responseTokens += estimateTokens(content);
     }
@@ -346,7 +352,7 @@ export function validateSynthesisContext(
         };
     }
 
-    if (totalEstimatedTokens > maxInputTokens * 0.8) {
+    if (totalEstimatedTokens > maxInputTokens * warningThreshold) {
         return {
             isValid: true,
             estimatedTokens: totalEstimatedTokens,

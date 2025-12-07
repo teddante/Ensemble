@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { OpenRouter } from '@openrouter/sdk';
 import { validatePrompt, validateApiKey, validateModels } from '@/lib/validation';
-import { createSynthesisPrompt, streamModelResponse as libStreamModelResponse, validateSynthesisContext } from '@/lib/openrouter';
+import { MAX_SYNTHESIS_CHARS, createSynthesisPrompt, streamModelResponse as libStreamModelResponse, validateSynthesisContext } from '@/lib/openrouter';
 import { StreamEvent, ReasoningParams, Message } from '@/types';
 import { generateRateLimiter, getClientIdentifier } from '@/lib/rateLimit';
 import { generationLock, getSessionIdentifier } from '@/lib/sessionLock';
@@ -122,7 +122,11 @@ export async function POST(request: NextRequest): Promise<Response> {
         }
 
         const body = await request.json();
-        const { prompt, messages, models, refinementModel, reasoning } = body;
+        const { prompt, messages, models, refinementModel, reasoning, maxSynthesisChars, contextWarningThreshold } = body;
+
+        // Defaults if not provided (should be provided by frontend but good for safety)
+        const effectiveMaxSynthesisChars = maxSynthesisChars || MAX_SYNTHESIS_CHARS;
+        const effectiveWarningThreshold = contextWarningThreshold || 0.8;
 
         // Get API key from Cookie only (secure storage)
         const apiKey: string | null = await getApiKeyFromCookie();
@@ -206,10 +210,12 @@ export async function POST(request: NextRequest): Promise<Response> {
                     sendEvent(controller, { type: 'synthesis_start', modelId: synthesisModel });
 
                     try {
-                        // Validate synthesis context before proceeding
                         const contextValidation = validateSynthesisContext(
                             successfulResponses,
-                            promptValidation.sanitized!
+                            promptValidation.sanitized!,
+                            32000,
+                            effectiveMaxSynthesisChars,
+                            effectiveWarningThreshold
                         );
 
                         if (contextValidation.warning) {
@@ -218,11 +224,16 @@ export async function POST(request: NextRequest): Promise<Response> {
                                 warning: contextValidation.warning,
                                 estimatedTokens: contextValidation.estimatedTokens
                             });
+                            sendEvent(controller, {
+                                type: 'warning',
+                                warning: contextValidation.warning
+                            });
                         }
 
                         const synthesisPrompt = createSynthesisPrompt(
                             promptValidation.sanitized!,
-                            successfulResponses
+                            successfulResponses,
+                            effectiveMaxSynthesisChars
                         );
 
                         // Create timeout signal for synthesis

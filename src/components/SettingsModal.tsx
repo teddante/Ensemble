@@ -13,7 +13,7 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
-    const { settings, updateApiKey, updateRefinementModel } = useSettings();
+    const { settings, updateApiKey, updateRefinementModel, updateSettings } = useSettings();
     const [showApiKey, setShowApiKey] = useState(false);
     const [localApiKey, setLocalApiKey] = useState(settings.apiKey);
     const [isSaving, setIsSaving] = useState(false);
@@ -133,21 +133,61 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                     </div>
                 </div>
 
-                <div className="modal-footer">
-                    <button className="button-secondary" onClick={onClose} disabled={isSaving}>
-                        Cancel
-                    </button>
-                    <button className="button-primary" onClick={handleSave} disabled={isSaving}>
-                        {isSaving ? (
-                            <>
-                                <Loader2 size={16} className="spin" />
-                                Saving...
-                            </>
-                        ) : (
-                            'Save Changes'
-                        )}
-                    </button>
+                <div className="section-divider" style={{ margin: '1.5rem 0', borderTop: '1px solid var(--color-border)' }} />
+
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>Limits & Thresholds</h3>
+
+                <div className="form-group">
+                    <label htmlFor="max-synthesis-chars">Max Synthesis Characters</label>
+                    <input
+                        id="max-synthesis-chars"
+                        type="number"
+                        value={settings.maxSynthesisChars}
+                        onChange={(e) => updateSettings({ maxSynthesisChars: parseInt(e.target.value) || 0 })}
+                        className="api-key-input" // Reuse style
+                        style={{ width: '100%' }}
+                        disabled={isSaving}
+                        min={100}
+                        max={100000}
+                    />
+                    <p className="form-help">
+                        Truncate model outputs in synthesis to save tokens. Default: 32000.
+                    </p>
                 </div>
+
+                <div className="form-group">
+                    <label htmlFor="context-warning-threshold">Context Warning Threshold ({Math.round(settings.contextWarningThreshold * 100)}%)</label>
+                    <input
+                        id="context-warning-threshold"
+                        type="range"
+                        min="0.1"
+                        max="0.95"
+                        step="0.05"
+                        value={settings.contextWarningThreshold}
+                        onChange={(e) => updateSettings({ contextWarningThreshold: parseFloat(e.target.value) })}
+                        style={{ width: '100%', accentColor: 'var(--color-primary)' }}
+                        disabled={isSaving}
+                    />
+                    <p className="form-help">
+                        Warn when synthesis prompts exceed this percentage of the context window.
+                    </p>
+                </div>
+            </div>
+
+            <div className="modal-footer">
+                <button className="button-secondary" onClick={onClose} disabled={isSaving}>
+                    Cancel
+                </button>
+                <button className="button-primary" onClick={handleSave} disabled={isSaving}>
+                    {isSaving ? (
+                        <>
+                            <Loader2 size={16} className="spin" />
+                            Saving...
+                        </>
+                    ) : (
+                        'Save Changes'
+                    )}
+                </button>
             </div>
         </div>
     );
