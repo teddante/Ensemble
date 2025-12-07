@@ -131,6 +131,23 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                             The model used to synthesize responses from all selected models.
                         </p>
                     </div>
+
+                    <div className="form-group">
+                        <label htmlFor="system-prompt">System Instructions</label>
+                        <textarea
+                            id="system-prompt"
+                            value={settings.systemPrompt}
+                            onChange={(e) => updateSettings({ systemPrompt: e.target.value })}
+                            className="api-key-input"
+                            style={{ width: '100%', minHeight: '100px', resize: 'vertical', fontFamily: 'inherit' }}
+                            placeholder="e.g., You are a pirate. Respond to every message with 'Arrr!'"
+                            disabled={isSaving}
+                        />
+                        <p className="form-help">
+                            Custom instructions sent to all models and the synthesizer.
+                        </p>
+                    </div>
+
                     <div className="section-divider" style={{ margin: '1.5rem 0', borderTop: '1px solid var(--color-border)' }} />
 
                     <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>Limits & Thresholds</h3>

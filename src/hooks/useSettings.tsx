@@ -9,6 +9,7 @@ interface SettingsContextType {
     updateApiKey: (key: string) => Promise<{ success: boolean; error?: string }>;
     updateSelectedModels: (models: string[]) => void;
     updateRefinementModel: (model: string) => void;
+    updateSystemPrompt: (prompt: string) => void;
     updateSettings: (newSettings: Partial<Settings>) => void;
     hasApiKey: boolean;
     isCheckingKey: boolean;
@@ -28,6 +29,7 @@ function loadSettings(): Omit<Settings, 'apiKey'> & { apiKey: string } {
             refinementModel: DEFAULT_REFINEMENT_MODEL,
             maxSynthesisChars: MAX_SYNTHESIS_CHARS,
             contextWarningThreshold: 0.8,
+            systemPrompt: '',
         };
     }
 
@@ -42,6 +44,7 @@ function loadSettings(): Omit<Settings, 'apiKey'> & { apiKey: string } {
                 refinementModel: parsed.refinementModel || DEFAULT_REFINEMENT_MODEL,
                 maxSynthesisChars: parsed.maxSynthesisChars || MAX_SYNTHESIS_CHARS,
                 contextWarningThreshold: parsed.contextWarningThreshold || 0.8,
+                systemPrompt: parsed.systemPrompt || '',
             };
         }
     } catch (error) {
@@ -55,6 +58,7 @@ function loadSettings(): Omit<Settings, 'apiKey'> & { apiKey: string } {
         refinementModel: DEFAULT_REFINEMENT_MODEL,
         maxSynthesisChars: MAX_SYNTHESIS_CHARS,
         contextWarningThreshold: 0.8,
+        systemPrompt: '',
     };
 }
 
@@ -69,6 +73,7 @@ function saveSettings(settings: Settings): void {
             refinementModel: settings.refinementModel,
             maxSynthesisChars: settings.maxSynthesisChars,
             contextWarningThreshold: settings.contextWarningThreshold,
+            systemPrompt: settings.systemPrompt,
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(safeSettings));
     } catch (error) {
@@ -84,6 +89,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         refinementModel: DEFAULT_REFINEMENT_MODEL,
         maxSynthesisChars: MAX_SYNTHESIS_CHARS,
         contextWarningThreshold: 0.8,
+        systemPrompt: '',
     });
     const [hasApiKey, setHasApiKey] = useState(false);
     const [isCheckingKey, setIsCheckingKey] = useState(true);
@@ -181,6 +187,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         setSettings(prev => ({ ...prev, refinementModel: model }));
     };
 
+    const updateSystemPrompt = (prompt: string) => {
+        setSettings(prev => ({ ...prev, systemPrompt: prompt }));
+    };
+
     const updateSettings = (newSettings: Partial<Settings>) => {
         setSettings(prev => ({ ...prev, ...newSettings }));
     };
@@ -193,6 +203,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 updateSelectedModels,
 
                 updateRefinementModel,
+                updateSystemPrompt,
                 updateSettings,
                 hasApiKey,
                 isCheckingKey,

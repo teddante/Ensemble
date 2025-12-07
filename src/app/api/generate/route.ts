@@ -124,7 +124,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         }
 
         const body = await request.json();
-        const { prompt, messages, models, refinementModel, reasoning, maxSynthesisChars, contextWarningThreshold } = body;
+        const { prompt, messages, models, refinementModel, reasoning, maxSynthesisChars, contextWarningThreshold, systemPrompt } = body;
 
         // Defaults if not provided (should be provided by frontend but good for safety)
         const effectiveMaxSynthesisChars = maxSynthesisChars || MAX_SYNTHESIS_CHARS;
@@ -245,11 +245,17 @@ export async function POST(request: NextRequest): Promise<Response> {
                             synthesisTimeoutSignal
                         ]);
 
+                        const synthesisMessages: Message[] = [];
+                        if (systemPrompt) {
+                            synthesisMessages.push({ role: 'system', content: systemPrompt });
+                        }
+                        synthesisMessages.push({ role: 'user', content: synthesisPrompt });
+
                         let synthesizedContent = '';
                         const synthesisStream = await client.chat.send(
                             {
                                 model: synthesisModel,
-                                messages: [{ role: 'user', content: synthesisPrompt }],
+                                messages: synthesisMessages,
                                 stream: true,
                             },
                             { signal: synthesisSignal }

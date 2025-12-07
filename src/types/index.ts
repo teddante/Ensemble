@@ -62,6 +62,7 @@ export interface GenerationRequest {
     models: string[];
     apiKey: string;
     refinementModel?: string;
+    systemPrompt?: string;
 }
 
 export interface StreamEvent {
@@ -93,6 +94,7 @@ export interface Settings {
     refinementModel: string;
     maxSynthesisChars: number;
     contextWarningThreshold: number;
+    systemPrompt: string;
 }
 
 export const FALLBACK_MODELS: Model[] = [

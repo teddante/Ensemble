@@ -304,7 +304,12 @@ export default function Home() {
     abortControllerRef.current = new AbortController();
 
     // Construct message history including current prompt
-    const messages: { role: 'user' | 'assistant'; content: string }[] = [];
+    const messages: { role: 'user' | 'assistant' | 'system'; content: string }[] = [];
+
+    // Add system prompt if configured
+    if (settings.systemPrompt) {
+      messages.push({ role: 'system', content: settings.systemPrompt });
+    }
 
     // Add historical messages from current session
     // Iterate in reverse since history is stored newest-first but we need oldest-first for context
@@ -333,6 +338,7 @@ export default function Home() {
           refinementModel: settings.refinementModel,
           maxSynthesisChars: settings.maxSynthesisChars,
           contextWarningThreshold: settings.contextWarningThreshold,
+          systemPrompt: settings.systemPrompt,
         }),
         signal: abortControllerRef.current.signal,
         credentials: 'include',
