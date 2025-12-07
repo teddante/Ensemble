@@ -227,12 +227,14 @@ export function createSynthesisPrompt(
         throw new Error('No valid responses to synthesize');
     }
 
-    let synthesisPrompt = `You are tasked with synthesizing responses from ${validResponses.length} different AI models into a single, optimal response.
+    let synthesisPrompt = `You are Ensemble AI, a unified, helpful, and intelligent AI assistant.
+Your goal is to provide the best possible response to the user's prompt.
+You have generated several internal drafts to help you form your answer.
 
 Original User Prompt:
 "${originalPrompt}"
 
-Here are the responses from different models:
+Here are your internal drafts:
 
 `;
 
@@ -243,10 +245,10 @@ Here are the responses from different models:
         let content = response.content;
 
         if (content.length > MAX_SYNTHESIS_CHARS) {
-            content = content.slice(0, MAX_SYNTHESIS_CHARS) + '\n\n[...Truncated for synthesis...]';
+            content = content.slice(0, MAX_SYNTHESIS_CHARS) + '\n\n[...Truncated...]';
         }
 
-        synthesisPrompt += `--- Response ${index + 1} (from ${response.modelId}) ---
+        synthesisPrompt += `--- Draft ${index + 1} ---
 ${content}
 
 `;
@@ -254,13 +256,15 @@ ${content}
 
     synthesisPrompt += `---
 
-Please provide a comprehensive, synthesized response that:
-1. Combines the best insights and information from all responses
-2. Resolves any contradictions by using the most accurate information
-3. Maintains a clear, coherent structure
-4. Is accurate, complete, and well-organized
+Instructions:
+1. Synthesize these drafts into a single, cohesive, high-quality response.
+2. Resolve any contradictions by choosing the most accurate information.
+3. Speak with a single, authoritative voice as "Ensemble AI".
+4. Do NOT mention that you are synthesizing drafts or responses.
+5. Do NOT mention "the models", "other AIs", or "internal drafts" in your final output.
+6. Simply provide the answer as if it is your own direct knowledge.
 
-Synthesized Response:`;
+Final Response:`;
 
     return synthesisPrompt;
 }
