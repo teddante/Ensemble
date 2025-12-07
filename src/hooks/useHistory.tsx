@@ -15,6 +15,10 @@ export interface HistoryItem {
     responses: ModelResponse[];
     synthesizedContent: string;
     modelNames?: Record<string, string>; // Map of model IDs to display names
+    synthesisPromptData?: {
+        messages: any[];
+        modelId: string;
+    };
 }
 
 const STORAGE_KEY = 'ensemble_history';
@@ -129,7 +133,8 @@ export function useHistory() {
         responses: ModelResponse[],
         synthesizedContent: string,
         modelNames?: Record<string, string>, // Optional: map of model IDs to names
-        sessionId?: string
+        sessionId?: string,
+        synthesisPromptData?: { messages: any[]; modelId: string }
     ) => {
         const newItem: HistoryItem = {
             id: uuidv4(),
@@ -140,7 +145,8 @@ export function useHistory() {
             refinementModel,
             responses,
             synthesizedContent,
-            modelNames // Store model names for display when models change
+            modelNames, // Store model names for display when models change
+            synthesisPromptData
         };
 
         const newHistory = [newItem, ...history].slice(0, MAX_HISTORY_ITEMS);

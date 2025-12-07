@@ -7,9 +7,10 @@ import { ResponseCard } from './ResponseCard';
 interface ResponsePanelProps {
     responses: ModelResponse[];
     models: Model[];
+    onInspectModel?: (data: { messages: any[]; modelId: string }) => void;
 }
 
-export function ResponsePanel({ responses, models }: ResponsePanelProps) {
+export function ResponsePanel({ responses, models, onInspectModel }: ResponsePanelProps) {
     const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
 
     if (responses.length === 0) {
@@ -44,6 +45,7 @@ export function ResponsePanel({ responses, models }: ResponsePanelProps) {
                         modelName={getModelName(response.modelId)}
                         isExpanded={expandedModels.has(response.modelId)}
                         onToggle={toggleExpand}
+                        onInspect={onInspectModel}
                     />
                 ))}
             </div>

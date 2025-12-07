@@ -54,6 +54,10 @@ export interface ModelResponse {
     error?: string;
     tokens?: number; // Usage tokens (input + output)
     wordCount?: number; // Actual word count of the content
+    promptData?: {
+        messages: Message[];
+        modelId: string;
+    };
 }
 
 export interface GenerationRequest {
@@ -77,12 +81,17 @@ export interface StreamEvent {
     | 'synthesis_complete'
     | 'complete'
     | 'error'
-    | 'warning';
+    | 'warning'
+    | 'debug_prompt';
     modelId?: string;
     content?: string;
     reasoning?: string; // Content for reasoning/thinking chunks
     error?: string;
     warning?: string;
+    promptData?: {
+        messages: Message[];
+        modelId: string;
+    };
 
     tokens?: number;
     wordCount?: number;

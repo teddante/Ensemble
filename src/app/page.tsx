@@ -10,9 +10,10 @@ import { PromptInput } from '@/components/PromptInput';
 import { ModelSelector } from '@/components/ModelSelector';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ChatMessage } from '@/components/ChatMessage';
+import { PromptInspector } from '@/components/PromptInspector';
 import { useModels } from '@/hooks/useModels';
 import { useSettings } from '@/hooks/useSettings';
-import { ModelResponse, StreamEvent } from '@/types';
+import { ModelResponse, StreamEvent, Message } from '@/types';
 
 import { useHistory, HistoryItem } from '@/hooks/useHistory';
 import { HistorySidebar } from '@/components/HistorySidebar';
@@ -42,6 +43,8 @@ export default function Home() {
   const [warnings, setWarnings] = useState<string[]>([]); // Array of warning messages
   const [prompt, setPrompt] = useState(''); // Need to track prompt for saving/displaying active state
   const [error, setError] = useState<string | null>(null);
+  const [inspectingPrompt, setInspectingPrompt] = useState<{ messages: Message[], modelId: string } | null>(null);
+  const [synthesisPromptData, setSynthesisPromptData] = useState<{ messages: Message[], modelId: string } | undefined>(undefined);
 
   // Session Management
   const [currentSessionId, setCurrentSessionId] = useState<string>(() => uuidv4());
@@ -53,6 +56,7 @@ export default function Home() {
   const generationStateRef = useRef<{
     responses: ModelResponse[];
     synthesizedContent: string;
+    synthesisPromptData?: { messages: Message[], modelId: string };
   }>({ responses: [], synthesizedContent: '' });
 
   const handleStreamEvent = useCallback((event: StreamEvent, originalPrompt: string) => {
@@ -85,6 +89,28 @@ export default function Home() {
             ? { ...r, status: 'streaming' }
             : r
         ));
+        break;
+
+      case 'debug_prompt':
+        if (event.promptData) {
+          // Identify if this is the synthesis prompt
+          // Only synthesis prompt has the specific system instruction or internal drafts structure
+          const isSynthesis = event.promptData.messages.some(m =>
+            m.role === 'system' && m.content.includes('You are Ensemble AI') ||
+            m.role === 'user' && m.content.includes('Here are your internal drafts')
+          );
+
+          if (isSynthesis) {
+            setSynthesisPromptData(event.promptData);
+            generationStateRef.current.synthesisPromptData = event.promptData;
+          } else {
+            updateState(prev => prev.map(r =>
+              r.modelId === event.modelId
+                ? { ...r, promptData: event.promptData }
+                : r
+            ));
+          }
+        }
         break;
 
       case 'model_chunk':
@@ -158,7 +184,8 @@ export default function Home() {
           generationStateRef.current.responses,
           generationStateRef.current.synthesizedContent,
           undefined, // modelNames
-          currentSessionId // sessionId
+          currentSessionId, // sessionId
+          generationStateRef.current.synthesisPromptData
         );
 
         // Clear transient state so it moves to chat history
@@ -267,7 +294,7 @@ export default function Home() {
     setIsGenerating(true);
     setError(null);
     setSynthesizedContent('');
-    setSynthesizedContent('');
+    setSynthesisPromptData(undefined);
     setTruncatedModels([]);
     setWarnings([]); // Clear warnings
     setIsSynthesizing(false);
@@ -445,9 +472,14 @@ export default function Home() {
     setPrompt('');
     setResponses([]);
     setSynthesizedContent('');
+    setSynthesisPromptData(undefined);
     generationStateRef.current = { responses: [], synthesizedContent: '' };
     setError(null);
   }, [isGenerating]);
+
+  const handleInspectPrompt = useCallback((data: { messages: Message[], modelId: string }) => {
+    setInspectingPrompt(data);
+  }, []);
 
 
   const handleLoadHistory = (item: HistoryItem) => {
@@ -468,9 +500,11 @@ export default function Home() {
     setPrompt(item.prompt);
     setResponses(item.responses);
     setSynthesizedContent(item.synthesizedContent);
+    setSynthesisPromptData(item.synthesisPromptData);
     generationStateRef.current = {
       responses: item.responses,
-      synthesizedContent: item.synthesizedContent
+      synthesizedContent: item.synthesizedContent,
+      synthesisPromptData: item.synthesisPromptData
     };
 
     setIsGenerating(false);
@@ -585,6 +619,8 @@ export default function Home() {
                   responses={item.responses}
                   models={models}
                   timestamp={item.timestamp}
+                  onInspectPrompt={handleInspectPrompt}
+                  synthesisPromptData={item.synthesisPromptData}
                 />
               </div>
             ))}
@@ -604,6 +640,8 @@ export default function Home() {
                   isStreaming={isSynthesizing}
                   isGenerating={isGenerating}
                   truncatedModels={truncatedModels}
+                  onInspectPrompt={handleInspectPrompt}
+                  synthesisPromptData={synthesisPromptData}
                 />
               </div>
             )}
@@ -652,6 +690,15 @@ export default function Home() {
         onDelete={deleteItem}
         onClear={clearHistory}
       />
+
+      {inspectingPrompt && (
+        <PromptInspector
+          isOpen={!!inspectingPrompt}
+          onClose={() => setInspectingPrompt(null)}
+          messages={inspectingPrompt.messages}
+          modelId={inspectingPrompt.modelId}
+        />
+      )}
     </div>
   );
 }

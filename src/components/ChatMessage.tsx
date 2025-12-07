@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { ModelResponse, Model } from '@/types';
 import { SynthesizedResponse } from './SynthesizedResponse';
 import { ResponsePanel } from './ResponsePanel';
-import { User, Sparkles } from 'lucide-react';
+import { User, Sparkles, Info } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface ChatMessageProps {
@@ -14,6 +14,8 @@ interface ChatMessageProps {
     isGenerating?: boolean;
     timestamp?: number;
     truncatedModels?: string[];
+    onInspectPrompt?: (data: { messages: any[]; modelId: string }) => void;
+    synthesisPromptData?: { messages: any[]; modelId: string };
 }
 
 export const ChatMessage = memo(function ChatMessage({
@@ -23,7 +25,9 @@ export const ChatMessage = memo(function ChatMessage({
     models,
     isStreaming,
     isGenerating,
-    truncatedModels
+    truncatedModels,
+    onInspectPrompt,
+    synthesisPromptData
 }: ChatMessageProps) {
 
     if (role === 'user') {
@@ -45,7 +49,18 @@ export const ChatMessage = memo(function ChatMessage({
                 <Sparkles size={20} />
             </div>
             <div className="message-content assistant-content">
-                <div className="assistant-name">Ensemble AI</div>
+                <div className="flex items-center gap-2 mb-1">
+                    <div className="assistant-name">Ensemble AI</div>
+                    {onInspectPrompt && synthesisPromptData && (
+                        <button
+                            onClick={() => onInspectPrompt(synthesisPromptData)}
+                            className="text-text-tertiary hover:text-text-primary p-1 rounded hover:bg-surface-tertiary transition-colors"
+                            title="Inspect Synthesis Prompt"
+                        >
+                            <Info size={14} />
+                        </button>
+                    )}
+                </div>
                 <SynthesizedResponse
                     content={content}
                     isStreaming={!!isStreaming}
@@ -59,7 +74,7 @@ export const ChatMessage = memo(function ChatMessage({
                                 View Individual Model Responses ({responses.length})
                             </summary>
                             <div className="model-breakdown-content">
-                                <ResponsePanel responses={responses} models={models} />
+                                <ResponsePanel responses={responses} models={models} onInspectModel={onInspectPrompt} />
                             </div>
                         </details>
                     </div>

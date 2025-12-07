@@ -40,6 +40,21 @@ async function generateSingleModelResponse(
     let fullContent = '';
     let finalUsage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | undefined;
 
+    // Prepare messages for debug event (mimic what happens in valid streamModelResponse)
+    const debugMessages: Message[] = messages && messages.length > 0
+        ? messages
+        : [{ role: 'user', content: prompt }];
+
+    // Send debug event with the prompt data
+    sendEvent(controller, {
+        type: 'debug_prompt',
+        modelId: model,
+        promptData: {
+            modelId: model,
+            messages: debugMessages
+        }
+    });
+
     sendEvent(controller, { type: 'model_start', modelId: model });
 
     try {
@@ -250,6 +265,16 @@ export async function POST(request: NextRequest): Promise<Response> {
                             synthesisMessages.push({ role: 'system', content: systemPrompt });
                         }
                         synthesisMessages.push({ role: 'user', content: synthesisPrompt });
+
+                        // Send debug event for synthesis
+                        sendEvent(controller, {
+                            type: 'debug_prompt',
+                            modelId: synthesisModel,
+                            promptData: {
+                                modelId: synthesisModel,
+                                messages: synthesisMessages
+                            }
+                        });
 
                         let synthesizedContent = '';
                         const synthesisStream = await client.chat.send(

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { memo } from 'react';
-import { ChevronDown, ChevronUp, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, CheckCircle, XCircle, Loader2, Info } from 'lucide-react';
 import { ModelResponse } from '@/types';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
@@ -10,13 +10,15 @@ interface ResponseCardProps {
     modelName: string;
     isExpanded: boolean;
     onToggle: (modelId: string) => void;
+    onInspect?: (data: { messages: any[]; modelId: string }) => void;
 }
 
 const ResponseCard = memo(function ResponseCard({
     response,
     modelName,
     isExpanded,
-    onToggle
+    onToggle,
+    onInspect
 }: ResponseCardProps) {
 
     const getStatusIcon = (status: ModelResponse['status']) => {
@@ -68,11 +70,27 @@ const ResponseCard = memo(function ResponseCard({
                         </span>
                     </div>
                 </div>
-                {(response.status === 'complete' || response.status === 'error') && (
-                    <span className="expand-icon">
-                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                    </span>
-                )}
+                <div className="flex items-center gap-2">
+                    {onInspect && response.promptData && (
+                        <div
+                            role="button"
+                            tabIndex={0}
+                            className="p-1 text-text-tertiary hover:text-text-primary rounded z-10"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onInspect(response.promptData!);
+                            }}
+                            title="Inspect Prompt"
+                        >
+                            <Info size={16} />
+                        </div>
+                    )}
+                    {(response.status === 'complete' || response.status === 'error') && (
+                        <span className="expand-icon">
+                            {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                        </span>
+                    )}
+                </div>
             </button>
 
             {isExpanded && response.status === 'complete' && response.content && (
@@ -100,7 +118,8 @@ const ResponseCard = memo(function ResponseCard({
     return (
         prevProps.isExpanded === nextProps.isExpanded &&
         prevProps.response === nextProps.response && // Relies on immutable updates in parent
-        prevProps.modelName === nextProps.modelName
+        prevProps.modelName === nextProps.modelName &&
+        prevProps.onInspect === nextProps.onInspect
     );
 });
 
