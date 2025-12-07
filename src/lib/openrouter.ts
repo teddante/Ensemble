@@ -170,6 +170,7 @@ export async function streamModelResponse({
                 return;
             }
         } catch (error) {
+            console.error(`Stream error for model ${model}:`, error); // Log the real error
             if (error instanceof Error) {
                 // Check if timeout vs user cancellation
                 if (error.name === 'TimeoutError' || error.message.includes('timeout')) {

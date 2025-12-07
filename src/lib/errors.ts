@@ -59,7 +59,7 @@ export function handleOpenRouterError(error: unknown): string {
         }
 
         // 408 - Request Timeout
-        if (message.includes('408') || message.includes('timeout')) {
+        if (message.includes('408') || message.includes('timeout') || message.includes('timed out')) {
             return 'The request timed out. Please try again.';
         }
 

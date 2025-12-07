@@ -123,14 +123,16 @@ export class RateLimiter {
 }
 
 // Global rate limiter instances
-// Generate: 10 requests per minute (refill 1 every 6 seconds)
-export const generateRateLimiter = new RateLimiter(10, 1 / 6);
+import { GENERATE_RATE_LIMIT, KEY_RATE_LIMIT, MODELS_RATE_LIMIT } from './constants';
 
-// Key management: 5 requests per minute
-export const keyRateLimiter = new RateLimiter(5, 1 / 12);
+// Generate: 50 requests per minute
+export const generateRateLimiter = new RateLimiter(GENERATE_RATE_LIMIT, GENERATE_RATE_LIMIT / 60);
 
-// Models list: 20 requests per minute
-export const modelsRateLimiter = new RateLimiter(20, 1 / 3);
+// Key management: 20 requests per minute
+export const keyRateLimiter = new RateLimiter(KEY_RATE_LIMIT, KEY_RATE_LIMIT / 60);
+
+// Models list: 50 requests per minute
+export const modelsRateLimiter = new RateLimiter(MODELS_RATE_LIMIT, MODELS_RATE_LIMIT / 60);
 
 // Note: In Edge runtime, instances are short-lived per request
 // The unref'd intervals don't block process exit
