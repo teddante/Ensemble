@@ -81,9 +81,9 @@ export function ResponsePanel({ responses, models }: ResponsePanelProps) {
                                         {getModelName(response.modelId)}
                                     </span>
                                     <div className="response-status-group">
-                                        {response.tokens && (
+                                        {(response.wordCount !== undefined || response.tokens !== undefined) && (
                                             <span className="response-tokens">
-                                                {response.tokens} words
+                                                {response.wordCount !== undefined ? response.wordCount : response.tokens} words
                                             </span>
                                         )}
                                         <span className={`response-status ${response.status}`}>

@@ -101,7 +101,7 @@ export default function Home() {
         }
         updateState(prev => prev.map(r =>
           r.modelId === event.modelId
-            ? { ...r, status: 'complete', content: event.content || r.content, tokens: event.tokens }
+            ? { ...r, status: 'complete', content: event.content || r.content, tokens: event.tokens, wordCount: event.wordCount }
             : r
         ));
         break;

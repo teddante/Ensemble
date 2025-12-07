@@ -52,7 +52,8 @@ export interface ModelResponse {
     content: string;
     status: 'pending' | 'streaming' | 'complete' | 'error';
     error?: string;
-    tokens?: number; // Approximate word count
+    tokens?: number; // Usage tokens (input + output)
+    wordCount?: number; // Actual word count of the content
 }
 
 export interface GenerationRequest {
@@ -81,7 +82,9 @@ export interface StreamEvent {
     reasoning?: string; // Content for reasoning/thinking chunks
     error?: string;
     warning?: string;
+    warning?: string;
     tokens?: number;
+    wordCount?: number;
 }
 
 export interface Settings {

@@ -65,11 +65,13 @@ async function generateSingleModelResponse(
             signal
         });
 
+        const wordCount = fullContent.split(/\s+/).filter(Boolean).length;
         sendEvent(controller, {
             type: 'model_complete',
             modelId: model,
             content: fullContent,
-            tokens: finalUsage?.total_tokens || fullContent.split(/\s+/).filter(Boolean).length
+            tokens: finalUsage?.total_tokens,
+            wordCount
         });
 
         return { modelId: model, content: fullContent, success: true, usage: finalUsage };
