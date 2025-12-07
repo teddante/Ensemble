@@ -82,7 +82,7 @@ export interface StreamEvent {
     reasoning?: string; // Content for reasoning/thinking chunks
     error?: string;
     warning?: string;
-    warning?: string;
+
     tokens?: number;
     wordCount?: number;
 }
