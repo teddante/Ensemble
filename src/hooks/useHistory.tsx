@@ -7,6 +7,7 @@ import { MAX_HISTORY_ITEMS } from '@/lib/constants';
 
 export interface HistoryItem {
     id: string;
+    sessionId?: string; // Optional session ID to group messages
     timestamp: number;
     prompt: string;
     models: string[]; // Model IDs used
@@ -127,10 +128,12 @@ export function useHistory() {
         refinementModel: string,
         responses: ModelResponse[],
         synthesizedContent: string,
-        modelNames?: Record<string, string> // Optional: map of model IDs to names
+        modelNames?: Record<string, string>, // Optional: map of model IDs to names
+        sessionId?: string
     ) => {
         const newItem: HistoryItem = {
             id: uuidv4(),
+            sessionId,
             timestamp: Date.now(),
             prompt,
             models,

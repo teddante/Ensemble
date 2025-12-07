@@ -1503,10 +1503,11 @@ body {
   flex: 1;
   overflow-y: auto;
   padding: var(--space-4) var(--space-4);
-  padding-bottom: 20px;
+  padding-bottom: 240px;
+  /* Increased to clear fixed footer comfortably */
   scroll-behavior: smooth;
-  height: calc(100vh - 80px - 140px);
-  /* Approx calc: 100vh - header - footer */
+  height: calc(100vh - 80px);
+  /* Fill remaining height, let padding handle footer clearance */
   display: flex;
   flex-direction: column;
 }

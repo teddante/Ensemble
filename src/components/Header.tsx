@@ -1,14 +1,15 @@
 'use client';
 
-import { Settings, Clock } from 'lucide-react';
+import { Settings, Clock, PlusCircle } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
 
 interface HeaderProps {
     onOpenSettings: () => void;
     onOpenHistory: () => void;
+    onNewChat: () => void;
 }
 
-export function Header({ onOpenSettings, onOpenHistory }: HeaderProps) {
+export function Header({ onOpenSettings, onOpenHistory, onNewChat }: HeaderProps) {
     const { hasApiKey } = useSettings();
 
     return (
@@ -39,6 +40,15 @@ export function Header({ onOpenSettings, onOpenHistory }: HeaderProps) {
                 </div>
 
                 <div className="header-actions">
+                    <button
+                        className="settings-button"
+                        onClick={onNewChat}
+                        aria-label="New Chat"
+                        style={{ borderColor: 'var(--color-accent-primary)', color: 'var(--color-accent-secondary)', background: 'rgba(139, 92, 246, 0.1)' }}
+                    >
+                        <PlusCircle size={20} />
+                        <span>New Chat</span>
+                    </button>
                     {!hasApiKey && (
                         <span className="api-key-warning">
                             API key required
@@ -65,3 +75,4 @@ export function Header({ onOpenSettings, onOpenHistory }: HeaderProps) {
         </header>
     );
 }
+

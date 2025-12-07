@@ -3,6 +3,7 @@
 import { MAX_SYNTHESIS_CHARS, estimateTokens } from '@/lib/openrouter';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { Header } from '@/components/Header';
 import { SettingsModal } from '@/components/SettingsModal';
 import { PromptInput } from '@/components/PromptInput';
@@ -40,6 +41,9 @@ export default function Home() {
   const [truncatedModels, setTruncatedModels] = useState<string[]>([]);
   const [prompt, setPrompt] = useState(''); // Need to track prompt for saving/displaying active state
   const [error, setError] = useState<string | null>(null);
+
+  // Session Management
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => uuidv4());
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -145,7 +149,9 @@ export default function Home() {
           settings.selectedModels,
           settings.refinementModel,
           generationStateRef.current.responses,
-          generationStateRef.current.synthesizedContent
+          generationStateRef.current.synthesizedContent,
+          undefined, // modelNames
+          currentSessionId // sessionId
         );
 
         // Clear transient state so it moves to chat history
@@ -155,7 +161,7 @@ export default function Home() {
         generationStateRef.current = { responses: [], synthesizedContent: '' };
         break;
     }
-  }, [addToHistory, settings]);
+  }, [addToHistory, settings, currentSessionId]);
 
   // Show settings modal on first load if no API key
   useEffect(() => {
@@ -346,17 +352,41 @@ export default function Home() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isGenerating, handleCancel]);
 
+  const handleNewChat = useCallback(() => {
+    if (isGenerating) {
+      return; // Don't interrupt generation
+    }
+    // Start new session
+    setCurrentSessionId(uuidv4());
+
+    // Clear active state
+    setPrompt('');
+    setResponses([]);
+    setSynthesizedContent('');
+    generationStateRef.current = { responses: [], synthesizedContent: '' };
+    setError(null);
+  }, [isGenerating]);
+
 
   const handleLoadHistory = (item: HistoryItem) => {
-    // Restoring legacy behavior: just duplicate the prompt to active state for now
-    // In chat interface, this is akin to "Copy to composer" or "Retry"
+    // Switch to the session of this item
+    if (item.sessionId) {
+      setCurrentSessionId(item.sessionId);
+    } else {
+      // Legacy item without session ID, maybe create a new temp session for it? 
+      // Or just let it appear. For now let's assign a session ID if missing (migration)
+      // ideally we would backfill this but we can just set currentSessionId to undefined? 
+      // But our filter below depends on it. 
+      // Let's assume legacy items are "Global" or "Sessionless".
+      // If we switch to them, we might lose context of which other items belong to it (none).
+      // Let's just create a new session and "restore" this content into it as a starting point?
+      // No, that duplicates data.
+      // Let's just create a new session ID for viewing this item context if it has none
+      setCurrentSessionId(uuidv4());
+    }
+
+    // Restore state
     setPrompt(item.prompt);
-    // Don't restore the response/content to active state unless we want to "edit" it?
-    // Current app behavior was "restore view".
-    // Since we now show history inline, maybe this just sets the prompt input?
-    // Let's stick to setting prompt and scrolling to bottom.
-    // If we set responses/synthesizedContent, it will show up as a duplicate "Active" message at the bottom.
-    // Let's do that for now to preserve "Restore" capability behavior, user can then "Regenerate" if they want.
     setResponses(item.responses);
     setSynthesizedContent(item.synthesizedContent);
     generationStateRef.current = {
@@ -372,11 +402,19 @@ export default function Home() {
     setIsHistoryOpen(false);
   };
 
+  // Filter history for current session
+  // Note: For legacy items without sessionId, they will effectively be hidden unless we handle undefined.
+  // For now, new items will have sessionId.
+  const currentSessionHistory = history.filter(item =>
+    item.sessionId === currentSessionId
+  );
+
   return (
     <div className="app-container">
       <Header
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenHistory={() => setIsHistoryOpen(true)}
+        onNewChat={handleNewChat}
       />
 
       <main className="main-content chat-scroll-area">
@@ -432,8 +470,8 @@ export default function Home() {
 
           {/* Chat Messages Stream */}
           <div className="chat-stream">
-            {/* Historical Messages */}
-            {history.slice().reverse().map((item) => (
+            {/* Historical Messages for this session */}
+            {currentSessionHistory.slice().reverse().map((item) => (
               <div key={item.id}>
                 <ChatMessage
                   role="user"
@@ -470,7 +508,7 @@ export default function Home() {
             )}
 
             {/* Empty State / Placeholder if no history and no active prompt */}
-            {history.length === 0 && !prompt && !isGenerating && !synthesizedContent && (
+            {currentSessionHistory.length === 0 && !prompt && !isGenerating && !synthesizedContent && (
               <div style={{
                 textAlign: 'center',
                 color: 'var(--color-text-tertiary)',
