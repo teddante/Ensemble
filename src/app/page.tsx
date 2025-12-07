@@ -59,6 +59,18 @@ export default function Home() {
     synthesisPromptData?: { messages: Message[], modelId: string };
   }>({ responses: [], synthesizedContent: '' });
 
+  // Ref to track history for async access in generation, avoiding stale closures
+  const historyRef = useRef<HistoryItem[]>([]);
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
+
+  // Ref for currentSessionId to ensure latest ID is used in async callbacks
+  const currentSessionIdRef = useRef(currentSessionId);
+  useEffect(() => {
+    currentSessionIdRef.current = currentSessionId;
+  }, [currentSessionId]);
+
   // Filter history for current session
   // Note: For legacy items without sessionId, they will effectively be hidden unless we handle undefined.
   // For now, new items will have sessionId.
@@ -346,10 +358,12 @@ export default function Home() {
       messages.push({ role: 'system', content: settings.systemPrompt });
     }
 
+    const currentHistory = historyRef.current.filter(h => h.sessionId === currentSessionIdRef.current);
+
     // Add historical messages from current session
     // Iterate in reverse since history is stored newest-first but we need oldest-first for context
-    for (let i = currentSessionHistory.length - 1; i >= 0; i--) {
-      const item = currentSessionHistory[i];
+    for (let i = currentHistory.length - 1; i >= 0; i--) {
+      const item = currentHistory[i];
       messages.push({ role: 'user', content: item.prompt });
       if (item.synthesizedContent) {
         messages.push({ role: 'assistant', content: item.synthesizedContent });
@@ -431,7 +445,7 @@ export default function Home() {
       abortControllerRef.current = null;
     }
 
-  }, [hasApiKey, settings.selectedModels, settings.refinementModel, handleStreamEvent, models, currentSessionHistory, settings.contextWarningThreshold, settings.maxSynthesisChars, settings.systemPrompt]);
+  }, [hasApiKey, settings.selectedModels, settings.refinementModel, handleStreamEvent, models, settings.contextWarningThreshold, settings.maxSynthesisChars, settings.systemPrompt]);
 
   const handleCancel = useCallback(() => {
     if (abortControllerRef.current) {

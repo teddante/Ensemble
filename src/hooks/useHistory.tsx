@@ -126,6 +126,16 @@ export function useHistory() {
         };
     }, []);
 
+    // Effect to persist history whenever it changes
+    useEffect(() => {
+        if (history.length > 0) { // Only save if we have items (or you might want to save empty array if cleared context, see below)
+            debouncedSave(history);
+        } else if (history.length === 0 && localStorage.getItem(STORAGE_KEY)) {
+            // Handle clear history case
+            debouncedSave([]);
+        }
+    }, [history, debouncedSave]);
+
     const addToHistory = useCallback((
         prompt: string,
         models: string[],
@@ -149,24 +159,21 @@ export function useHistory() {
             synthesisPromptData
         };
 
-        const newHistory = [newItem, ...history].slice(0, MAX_HISTORY_ITEMS);
-        setHistory(newHistory);
-        debouncedSave(newHistory);
-    }, [history, debouncedSave]);
+        setHistory(prev => {
+            const newHistory = [newItem, ...prev].slice(0, MAX_HISTORY_ITEMS);
+            return newHistory;
+        });
+    }, []);
 
     const deleteItem = useCallback((id: string) => {
-        const newHistory = history.filter(item => item.id !== id);
-        setHistory(newHistory);
-        debouncedSave(newHistory);
-    }, [history, debouncedSave]);
+        setHistory(prev => prev.filter(item => item.id !== id));
+    }, []);
 
     const updateHistoryItem = useCallback((id: string, updates: Partial<HistoryItem>) => {
-        const newHistory = history.map(item =>
+        setHistory(prev => prev.map(item =>
             item.id === id ? { ...item, ...updates } : item
-        );
-        setHistory(newHistory);
-        debouncedSave(newHistory);
-    }, [history, debouncedSave]);
+        ));
+    }, []);
 
     const clearHistory = useCallback(() => {
         setHistory([]);
