@@ -177,9 +177,26 @@ export default function Home() {
     }
   }, [hasApiKey]);
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom with user interrupt detection
+  const shouldAutoScrollRef = useRef(true);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+      // If user is within 100px of bottom, they are "at the bottom" and we should auto-scroll
+      // Otherwise, they have scrolled up and we should stop auto-scrolling
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 100;
+      shouldAutoScrollRef.current = isAtBottom;
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    if (shouldAutoScrollRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [history, synthesizedContent, responses, prompt]);
 
   // Validate user-selected models when models are loaded
@@ -214,6 +231,10 @@ export default function Home() {
       setIsSettingsOpen(true);
       return;
     }
+
+    // Force scroll to bottom when starting new generation
+    shouldAutoScrollRef.current = true;
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
 
     setPrompt(newPrompt); // Track current prompt
     setIsGenerating(true);
@@ -428,6 +449,12 @@ export default function Home() {
 
     // Close sidebar
     setIsHistoryOpen(false);
+
+    // Scroll to bottom of loaded content
+    setTimeout(() => {
+      shouldAutoScrollRef.current = true;
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
 
   // Filter history for current session
