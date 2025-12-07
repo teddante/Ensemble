@@ -30,7 +30,7 @@ export default function Home() {
     setRemovedSelectedModels,
     validationDoneRef
   } = useModels();
-  const { history, addToHistory, deleteItem, clearHistory, storageWarning } = useHistory();
+  const { history, addToHistory, deleteItem, clearHistory, updateHistoryItem, storageWarning } = useHistory();
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -179,24 +179,48 @@ export default function Home() {
 
   // Auto-scroll to bottom with user interrupt detection
   const shouldAutoScrollRef = useRef(true);
+  const scrollIntervalRef = useRef<number | null>(null);
 
   useEffect(() => {
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
-      // If user is within 100px of bottom, they are "at the bottom" and we should auto-scroll
-      // Otherwise, they have scrolled up and we should stop auto-scrolling
-      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 100;
+
+      // If the user scrolls up, disable auto-scroll
+      // We consider "at bottom" if within 50px of the bottom to account for minor calculation differences
+      const isAtBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 50;
+
+      // If we were auto-scrolling but the user moved away from bottom, stop.
+      // If the user moved BACK to bottom, resume.
       shouldAutoScrollRef.current = isAtBottom;
     };
 
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Use requestAnimationFrame for smooth scrolling during generation
   useEffect(() => {
+    if (!history && !synthesizedContent && !responses && !prompt) return;
+
+    const scrollToBottom = () => {
+      if (shouldAutoScrollRef.current && messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+    };
+
+    // Throttle scroll updates to prevent UI jank
     if (shouldAutoScrollRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      if (scrollIntervalRef.current) {
+        cancelAnimationFrame(scrollIntervalRef.current);
+      }
+      scrollIntervalRef.current = requestAnimationFrame(scrollToBottom);
     }
+
+    return () => {
+      if (scrollIntervalRef.current) {
+        cancelAnimationFrame(scrollIntervalRef.current);
+      }
+    };
   }, [history, synthesizedContent, responses, prompt]);
 
   // Validate user-selected models when models are loaded
@@ -234,7 +258,10 @@ export default function Home() {
 
     // Force scroll to bottom when starting new generation
     shouldAutoScrollRef.current = true;
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Small timeout to ensure state updates have rendered placeholder before scrolling
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 10);
 
     setPrompt(newPrompt); // Track current prompt
     setIsGenerating(true);
@@ -422,16 +449,13 @@ export default function Home() {
     if (item.sessionId) {
       setCurrentSessionId(item.sessionId);
     } else {
-      // Legacy item without session ID, maybe create a new temp session for it? 
-      // Or just let it appear. For now let's assign a session ID if missing (migration)
-      // ideally we would backfill this but we can just set currentSessionId to undefined? 
-      // But our filter below depends on it. 
-      // Let's assume legacy items are "Global" or "Sessionless".
-      // If we switch to them, we might lose context of which other items belong to it (none).
-      // Let's just create a new session and "restore" this content into it as a starting point?
-      // No, that duplicates data.
-      // Let's just create a new session ID for viewing this item context if it has none
-      setCurrentSessionId(uuidv4());
+      // Legacy item without session ID, assign one and persist it
+      const newSessionId = uuidv4();
+
+      // Update the item in storage so next time it has a session ID
+      updateHistoryItem(item.id, { sessionId: newSessionId });
+
+      setCurrentSessionId(newSessionId);
     }
 
     // Restore state

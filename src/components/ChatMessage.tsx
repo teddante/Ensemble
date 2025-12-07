@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { ModelResponse, Model } from '@/types';
 import { SynthesizedResponse } from './SynthesizedResponse';
 import { ResponsePanel } from './ResponsePanel';
@@ -15,7 +16,7 @@ interface ChatMessageProps {
     truncatedModels?: string[];
 }
 
-export function ChatMessage({
+export const ChatMessage = memo(function ChatMessage({
     role,
     content,
     responses,
@@ -66,4 +67,4 @@ export function ChatMessage({
             </div>
         </div>
     );
-}
+});

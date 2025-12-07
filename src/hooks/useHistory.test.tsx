@@ -46,6 +46,22 @@ describe('useHistory Hook', () => {
         expect(result.current.history).toHaveLength(0);
     });
 
+    it('should update item in history', () => {
+        const { result } = renderHook(() => useHistory());
+
+        act(() => {
+            result.current.addToHistory('Prompt 1', [], '', [], '');
+        });
+
+        const id = result.current.history[0].id;
+
+        act(() => {
+            result.current.updateHistoryItem(id, { prompt: 'Updated Prompt' });
+        });
+
+        expect(result.current.history[0].prompt).toBe('Updated Prompt');
+    });
+
     it('should clear all history', () => {
         const { result } = renderHook(() => useHistory());
 

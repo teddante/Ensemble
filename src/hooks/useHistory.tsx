@@ -154,6 +154,14 @@ export function useHistory() {
         debouncedSave(newHistory);
     }, [history, debouncedSave]);
 
+    const updateHistoryItem = useCallback((id: string, updates: Partial<HistoryItem>) => {
+        const newHistory = history.map(item =>
+            item.id === id ? { ...item, ...updates } : item
+        );
+        setHistory(newHistory);
+        debouncedSave(newHistory);
+    }, [history, debouncedSave]);
+
     const clearHistory = useCallback(() => {
         setHistory([]);
         setStorageWarning(null);
@@ -163,6 +171,7 @@ export function useHistory() {
     return {
         history,
         addToHistory,
+        updateHistoryItem,
         deleteItem,
         clearHistory,
         storageWarning
