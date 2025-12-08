@@ -139,7 +139,8 @@ export async function POST(request: NextRequest): Promise<Response> {
         }
 
         const body = await request.json();
-        let { prompt, messages, models, refinementModel, reasoning, maxSynthesisChars, contextWarningThreshold, systemPrompt } = body;
+        const { prompt, models, refinementModel, reasoning, maxSynthesisChars, contextWarningThreshold } = body;
+        let { messages, systemPrompt } = body;
 
         // Inject Current Date and Time
         const currentDate = new Date().toUTCString();

@@ -499,7 +499,7 @@ export default function Home() {
     setSynthesisPromptData(undefined);
     generationStateRef.current = { responses: [], synthesizedContent: '' };
     setError(null);
-  }, [isGenerating]);
+  }, []);
 
   const handleInspectPrompt = useCallback((data: { messages: Message[], modelId: string }) => {
     setInspectingPrompt(data);

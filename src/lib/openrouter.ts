@@ -106,8 +106,10 @@ export async function streamModelResponse({
                     stream: true,
                     // Use snake_case for OpenAI compatibility
                     stream_options: { include_usage: true }
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 } as any,
                 { signal: combinedSignal }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
             ) as any;
 
             for await (const chunk of stream) {

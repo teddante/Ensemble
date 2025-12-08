@@ -72,7 +72,7 @@ export class SessionLockManager {
             const key = `ensemble:lock:${sessionId}`;
             const exists = await redis.exists(key);
             return exists === 1;
-        } catch (_error) {
+        } catch {
             return false;
         }
     }
@@ -89,7 +89,7 @@ export class SessionLockManager {
             if (ttlSeconds < 0) return 0; // -1 (no expiry) or -2 (not found)
 
             return ttlSeconds * 1000;
-        } catch (_error) {
+        } catch {
             return 0;
         }
     }

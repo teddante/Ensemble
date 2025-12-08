@@ -30,6 +30,7 @@ export class RateLimiter {
 
         this.limiter = new Ratelimit({
             redis,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             limiter: Ratelimit.slidingWindow(maxTokens, `${Math.ceil(windowSeconds)} s` as any),
             analytics: true,
             prefix: 'ensemble:ratelimit',
@@ -57,6 +58,7 @@ export class RateLimiter {
 
     // No-op for API compatibility
     destroy(): void { }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     reset(identifier: string): void { }
 }
 
