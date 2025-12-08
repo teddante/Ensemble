@@ -139,7 +139,30 @@ export async function POST(request: NextRequest): Promise<Response> {
         }
 
         const body = await request.json();
-        const { prompt, messages, models, refinementModel, reasoning, maxSynthesisChars, contextWarningThreshold, systemPrompt } = body;
+        let { prompt, messages, models, refinementModel, reasoning, maxSynthesisChars, contextWarningThreshold, systemPrompt } = body;
+
+        // Inject Current Date and Time
+        const currentDate = new Date().toUTCString();
+        const timeContext = `\nCurrent Date and Time (UTC): ${currentDate}`;
+
+        // 1. Update systemPrompt for synthesis
+        if (systemPrompt) {
+            systemPrompt += timeContext;
+        } else {
+            systemPrompt = `Current Date and Time (UTC): ${currentDate}`;
+        }
+
+        // 2. Update messages for individual models
+        if (!messages) {
+            messages = [{ role: 'system', content: `Current Date and Time (UTC): ${currentDate}` }];
+        } else {
+            const systemIndex = messages.findIndex((m: Message) => m.role === 'system');
+            if (systemIndex >= 0) {
+                messages[systemIndex].content += timeContext;
+            } else {
+                messages.unshift({ role: 'system', content: `Current Date and Time (UTC): ${currentDate}` });
+            }
+        }
 
         // Defaults if not provided (should be provided by frontend but good for safety)
         const effectiveMaxSynthesisChars = maxSynthesisChars || MAX_SYNTHESIS_CHARS;
