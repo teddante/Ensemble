@@ -484,8 +484,10 @@ export default function Home() {
   }, [isGenerating, handleCancel]);
 
   const handleNewChat = useCallback(() => {
-    if (isGenerating) {
-      return; // Don't interrupt generation
+    // Abort active generation if any
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
     // Start new session
     setCurrentSessionId(uuidv4());
@@ -505,6 +507,12 @@ export default function Home() {
 
 
   const handleLoadHistory = (item: HistoryItem) => {
+    // Abort any active generation to prevent session merging
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+
     // Switch to the session of this item
     if (item.sessionId) {
       setCurrentSessionId(item.sessionId);
