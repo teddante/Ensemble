@@ -1,8 +1,10 @@
-import { memo } from 'react';
+'use client';
+
+import { memo, useState } from 'react';
 import { ModelResponse, Model, Message } from '@/types';
 import { SynthesizedResponse } from './SynthesizedResponse';
 import { ResponsePanel } from './ResponsePanel';
-import { User, Sparkles, Info } from 'lucide-react';
+import { User, Sparkles, Info, Copy, Check } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface ChatMessageProps {
@@ -30,9 +32,30 @@ export const ChatMessage = memo(function ChatMessage({
     synthesisPromptData
 }: ChatMessageProps) {
 
+    const [copiedUser, setCopiedUser] = useState(false);
+
+    const handleCopyUser = async () => {
+        if (!content) return;
+        try {
+            await navigator.clipboard.writeText(content);
+            setCopiedUser(true);
+            setTimeout(() => setCopiedUser(false), 2000);
+        } catch (error) {
+            console.error('Failed to copy:', error);
+        }
+    };
+
     if (role === 'user') {
         return (
-            <div className="chat-message user-message">
+            <div className="chat-message user-message group">
+                <button
+                    onClick={handleCopyUser}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-text-tertiary hover:text-text-primary self-start mt-1 mr-1"
+                    aria-label="Copy message"
+                    title="Copy message"
+                >
+                    {copiedUser ? <Check size={16} /> : <Copy size={16} />}
+                </button>
                 <div className="message-content user-content">
                     <MarkdownRenderer content={content} forceNewlines={true} />
                 </div>
