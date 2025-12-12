@@ -57,6 +57,16 @@ export async function GET(request: NextRequest) {
         const response = await client.models.list();
         const data = response.data;
 
+        // DEBUG: Log a sample model's raw data to check supported_parameters
+        const gpt5Model = data.find((m: any) => m.id.includes('gpt-5') || m.id.includes('o1'));
+        if (gpt5Model) {
+            console.log('[models/route] Sample reasoning model raw data:', JSON.stringify({
+                id: gpt5Model.id,
+                name: gpt5Model.name,
+                supported_parameters: gpt5Model.supported_parameters
+            }, null, 2));
+        }
+
         // Transform to our internal Model interface
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const models = data.map((m: any) => ({
