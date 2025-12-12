@@ -2,14 +2,14 @@
 
 @theme {
   --color-background-secondary: var(--color-bg-secondary);
-  
+
   --color-surface-primary: var(--color-surface);
   --color-surface-secondary: var(--color-bg-tertiary);
   --color-surface-tertiary: var(--color-bg-elevated);
   --color-surface-elevated: var(--color-bg-elevated);
-  
+
   --color-border: var(--color-border);
-  
+
   --color-text-primary: var(--color-text-primary);
   --color-text-secondary: var(--color-text-secondary);
   --color-text-tertiary: var(--color-text-tertiary);
@@ -996,11 +996,15 @@ body {
 .modal-content {
   width: 100%;
   max-width: 480px;
+  max-height: 90vh;
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   animation: modalSlideIn 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 @keyframes modalSlideIn {
@@ -1021,6 +1025,7 @@ body {
   align-items: center;
   padding: var(--space-5);
   border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
 .modal-header h2 {
@@ -1049,6 +1054,8 @@ body {
 
 .modal-body {
   padding: var(--space-5);
+  flex: 1;
+  overflow-y: auto;
 }
 
 .form-group {
@@ -1168,6 +1175,7 @@ body {
   padding: var(--space-4) var(--space-5);
   border-top: 1px solid var(--color-border);
   background: rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
 }
 
 .button-secondary {
