@@ -7,9 +7,16 @@ import { MODELS_CACHE_TTL, MAX_RETRIES, INITIAL_RETRY_DELAY_MS } from '@/lib/con
 const CACHE_KEY = 'ensemble_models_cache';
 const VALIDATED_FALLBACK_KEY = 'ensemble_validated_fallback';
 
+/**
+ * Cache version - bump this when the Model schema changes
+ * This ensures stale caches with missing fields are invalidated
+ */
+const CACHE_VERSION = 2; // Bumped: now includes supported_parameters
+
 interface CachedModels {
     models: Model[];
     timestamp: number;
+    version?: number; // Added for cache versioning
 }
 
 interface ValidatedFallback {
@@ -25,8 +32,22 @@ function getCachedModels(): CachedModels | null {
         const cached = localStorage.getItem(CACHE_KEY);
         if (cached) {
             const parsed: CachedModels = JSON.parse(cached);
-            // Return cache if still valid
+
+            // Check version - invalidate old caches
+            if (parsed.version !== CACHE_VERSION) {
+                console.log('[useModels] Cache version mismatch, invalidating. Expected:', CACHE_VERSION, 'Got:', parsed.version);
+                localStorage.removeItem(CACHE_KEY);
+                return null;
+            }
+
+            // Check TTL
             if (Date.now() - parsed.timestamp < MODELS_CACHE_TTL) {
+                // Validate that models have expected fields (spot check first model)
+                if (parsed.models.length > 0 && parsed.models[0].supported_parameters === undefined) {
+                    console.log('[useModels] Cache missing supported_parameters, invalidating');
+                    localStorage.removeItem(CACHE_KEY);
+                    return null;
+                }
                 return parsed;
             }
         }
@@ -43,6 +64,7 @@ function setCachedModels(models: Model[]): void {
         const cache: CachedModels = {
             models,
             timestamp: Date.now(),
+            version: CACHE_VERSION,
         };
         localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
     } catch (error) {

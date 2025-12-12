@@ -43,11 +43,6 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
         return isSelected && (isThinking || hasReasoningParam || isKnownReasoningModel);
     });
 
-    // Debug: Log what's happening
-    console.log('[SettingsModal] Selected models:', settings.selectedModels);
-    console.log('[SettingsModal] Models with supported_parameters:', models.filter(m => settings.selectedModels.includes(m.id)).map(m => ({ id: m.id, params: m.supported_parameters })));
-    console.log('[SettingsModal] Reasoning models found:', reasoningModels.map(m => m.id));
-
     // Sync local state when modal opens or settings change
     useEffect(() => {
         if (isOpen) {
