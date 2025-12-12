@@ -97,9 +97,17 @@ export interface StreamEvent {
     wordCount?: number;
 }
 
+export interface ModelConfig {
+    reasoning?: {
+        enabled: boolean;
+        effort?: 'low' | 'medium' | 'high';
+    };
+}
+
 export interface Settings {
     apiKey: string;
     selectedModels: string[];
+    modelConfigs: Record<string, ModelConfig>;
     refinementModel: string;
     maxSynthesisChars: number;
     contextWarningThreshold: number;

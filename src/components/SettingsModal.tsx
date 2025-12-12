@@ -13,11 +13,20 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
-    const { settings, updateApiKey, updateRefinementModel, updateSettings } = useSettings();
+    const { settings, updateApiKey, updateRefinementModel, updateSettings, updateModelConfig } = useSettings();
     const [showApiKey, setShowApiKey] = useState(false);
     const [localApiKey, setLocalApiKey] = useState(settings.apiKey);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Filter models that support reasoning
+    const reasoningModels = models.filter(m => {
+        const isThinking = m.id.endsWith(':thinking');
+        const hasReasoningParam = m.supported_parameters?.includes('reasoning') || m.supported_parameters?.includes('include_reasoning');
+        // Only show config if model is selected
+        const isSelected = settings.selectedModels.includes(m.id);
+        return isSelected && (isThinking || hasReasoningParam);
+    });
 
     // Sync local state when modal opens or settings change
     useEffect(() => {
@@ -147,6 +156,81 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                             Custom instructions sent to all models and the synthesizer.
                         </p>
                     </div>
+
+                    {reasoningModels.length > 0 && (
+                        <>
+                            <div className="section-divider" style={{ margin: '1.5rem 0', borderTop: '1px solid var(--color-border)' }} />
+                            <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>Model Configuration</h3>
+                            <div className="model-configs">
+                                {reasoningModels.map(model => {
+                                    const config = settings.modelConfigs[model.id] || { reasoning: { enabled: false } };
+                                    const isThinking = model.id.endsWith(':thinking');
+                                    // Some models might force reasoning on
+                                    const isForced = isThinking;
+
+                                    return (
+                                        <div key={model.id} className="form-group" style={{ marginBottom: '1.5rem', background: 'var(--color-bg-secondary)', padding: '1rem', borderRadius: '8px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                                <label style={{ fontWeight: 600, marginBottom: 0 }}>{model.name}</label>
+                                                <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>{model.provider}</span>
+                                            </div>
+
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        id={`reasoning-toggle-${model.id}`}
+                                                        checked={config.reasoning?.enabled ?? false}
+                                                        onChange={(e) => {
+                                                            const enabled = e.target.checked;
+                                                            updateModelConfig(model.id, {
+                                                                ...config,
+                                                                reasoning: {
+                                                                    ...config.reasoning,
+                                                                    enabled
+                                                                }
+                                                            });
+                                                        }}
+                                                        disabled={isSaving || isForced}
+                                                    />
+                                                    <label htmlFor={`reasoning-toggle-${model.id}`} style={{ marginBottom: 0, cursor: 'pointer' }}>
+                                                        Enable Reasoning {isForced && '(Always on)'}
+                                                    </label>
+                                                </div>
+
+                                                {(config.reasoning?.enabled || isForced) && (
+                                                    <div style={{ paddingLeft: '1.5rem' }}>
+                                                        <label htmlFor={`effort-${model.id}`} style={{ fontSize: '0.875rem' }}>Reasoning Effort</label>
+                                                        <select
+                                                            id={`effort-${model.id}`}
+                                                            value={config.reasoning?.effort || 'medium'}
+                                                            onChange={(e) => {
+                                                                updateModelConfig(model.id, {
+                                                                    ...config,
+                                                                    reasoning: {
+                                                                        ...config.reasoning,
+                                                                        enabled: true,
+                                                                        effort: e.target.value as 'low' | 'medium' | 'high'
+                                                                    }
+                                                                });
+                                                            }}
+                                                            className="select-input"
+                                                            style={{ fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
+                                                            disabled={isSaving}
+                                                        >
+                                                            <option value="low">Low</option>
+                                                            <option value="medium">Medium</option>
+                                                            <option value="high">High</option>
+                                                        </select>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </>
+                    )}
 
                     <div className="section-divider" style={{ margin: '1.5rem 0', borderTop: '1px solid var(--color-border)' }} />
 

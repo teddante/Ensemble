@@ -34,6 +34,7 @@ async function generateSingleModelResponse(
     messages: Message[] | undefined,
     apiKey: string,
     reasoning: ReasoningParams | undefined,
+    includeReasoning: boolean | undefined,
     controller: ReadableStreamDefaultController,
     signal: AbortSignal
 ): Promise<{ modelId: string; content: string; success: boolean; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } }> {
@@ -64,6 +65,7 @@ async function generateSingleModelResponse(
             model,
             apiKey,
             reasoning,
+            includeReasoning,
             onChunk: (content) => {
                 fullContent += content;
                 sendEvent(controller, { type: 'model_chunk', modelId: model, content });
@@ -139,7 +141,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         }
 
         const body = await request.json();
-        const { prompt, models, refinementModel, reasoning, maxSynthesisChars, contextWarningThreshold } = body;
+        const { prompt, models, refinementModel, reasoning: globalReasoning, modelConfigs, maxSynthesisChars, contextWarningThreshold } = body;
         let { messages, systemPrompt } = body;
 
         // Inject Current Date and Time
@@ -219,17 +221,43 @@ export async function POST(request: NextRequest): Promise<Response> {
             async start(controller) {
                 try {
                     // Fetch responses from all models in parallel
-                    const modelPromises = models.map((model: string) =>
-                        generateSingleModelResponse(
+                    const modelPromises = models.map((model: string) => {
+                        // Resolve reasoning config for this model
+                        // Priority: model-specific config > global reasoning param (legacy)
+                        // Note: modelConfigs key might be model ID
+                        const config = modelConfigs?.[model]?.reasoning;
+
+                        let shouldReason = false;
+                        let effort = undefined;
+
+                        if (config?.enabled) {
+                            shouldReason = true;
+                            effort = config.effort;
+                        } else if (globalReasoning) {
+                            // Fallback to legacy global param if provided (though frontend should use modelConfigs now)
+                            shouldReason = true;
+                            effort = globalReasoning.effort;
+                        }
+
+                        // Some models are thinking models by default (:thinking suffix)
+                        // For these, we might want to default includeReasoning to true if not explicitly disabled?
+                        // But for now let's stick to explicit configuration or "Enable Reasoning" toggle.
+                        // Actually, if it is a thinking model, we probably want to see the reasoning.
+                        // But let's rely on the config passed from UI which does the logic of "forced" or default.
+
+                        const reasoningParams = shouldReason ? { effort } : undefined;
+
+                        return generateSingleModelResponse(
                             model,
                             promptValidation.sanitized!,
                             messages,
                             apiKeyValidation.sanitized!,
-                            reasoning,
+                            reasoningParams,
+                            shouldReason, // includeReasoning
                             controller,
                             abortController.signal
-                        )
-                    );
+                        );
+                    });
 
                     const results = await Promise.all(modelPromises);
 

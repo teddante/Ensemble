@@ -384,6 +384,7 @@ export default function Home() {
           prompt: newPrompt,
           messages,
           models: settings.selectedModels,
+          modelConfigs: settings.modelConfigs,
           refinementModel: settings.refinementModel,
           maxSynthesisChars: settings.maxSynthesisChars,
           contextWarningThreshold: settings.contextWarningThreshold,
@@ -445,7 +446,7 @@ export default function Home() {
       abortControllerRef.current = null;
     }
 
-  }, [hasApiKey, settings.selectedModels, settings.refinementModel, handleStreamEvent, models, settings.contextWarningThreshold, settings.maxSynthesisChars, settings.systemPrompt]);
+  }, [hasApiKey, settings.selectedModels, settings.refinementModel, settings.modelConfigs, handleStreamEvent, models, settings.contextWarningThreshold, settings.maxSynthesisChars, settings.systemPrompt]);
 
   const handleCancel = useCallback(() => {
     if (abortControllerRef.current) {

@@ -52,6 +52,7 @@ export interface StreamOptions {
     model: string;
     apiKey: string;
     reasoning?: ReasoningParams;
+    includeReasoning?: boolean;
     onChunk: (content: string) => void;
     onReasoning?: (content: string) => void;
     onComplete: (fullContent: string, usage?: OpenRouterUsage) => void;
@@ -65,6 +66,7 @@ export async function streamModelResponse({
     model,
     apiKey,
     reasoning,
+    includeReasoning,
     onChunk,
     onReasoning,
     onComplete,
@@ -105,7 +107,10 @@ export async function streamModelResponse({
                     reasoning: reasoning,
                     stream: true,
                     // Use snake_case for OpenAI compatibility
-                    stream_options: { include_usage: true }
+                    stream_options: {
+                        include_usage: true,
+                        include_reasoning: includeReasoning
+                    }
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 } as any,
                 { signal: combinedSignal }
