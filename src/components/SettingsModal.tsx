@@ -20,13 +20,33 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
     const [error, setError] = useState<string | null>(null);
 
     // Filter models that support reasoning
+    // Detection: 
+    // 1. Model ID ends with :thinking variant
+    // 2. supported_parameters includes 'reasoning' or 'include_reasoning'
+    // 3. Known reasoning model patterns (o1, o3, deepseek-r1, etc.)
     const reasoningModels = models.filter(m => {
-        const isThinking = m.id.endsWith(':thinking');
+        const isThinking = m.id.endsWith(':thinking') || m.id.includes('-thinking');
         const hasReasoningParam = m.supported_parameters?.includes('reasoning') || m.supported_parameters?.includes('include_reasoning');
+
+        // Known reasoning models by ID pattern
+        const knownReasoningPatterns = [
+            'o1', 'o3', // OpenAI reasoning models
+            'deepseek-r1', 'deepseek/deepseek-r1', // DeepSeek R1
+            'qwq', // Alibaba QwQ
+        ];
+        const isKnownReasoningModel = knownReasoningPatterns.some(pattern =>
+            m.id.toLowerCase().includes(pattern)
+        );
+
         // Only show config if model is selected
         const isSelected = settings.selectedModels.includes(m.id);
-        return isSelected && (isThinking || hasReasoningParam);
+        return isSelected && (isThinking || hasReasoningParam || isKnownReasoningModel);
     });
+
+    // Debug: Log what's happening
+    console.log('[SettingsModal] Selected models:', settings.selectedModels);
+    console.log('[SettingsModal] Models with supported_parameters:', models.filter(m => settings.selectedModels.includes(m.id)).map(m => ({ id: m.id, params: m.supported_parameters })));
+    console.log('[SettingsModal] Reasoning models found:', reasoningModels.map(m => m.id));
 
     // Sync local state when modal opens or settings change
     useEffect(() => {
