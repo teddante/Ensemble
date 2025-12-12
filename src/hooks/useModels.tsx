@@ -233,13 +233,6 @@ export function useModels() {
 
                 const data = await response.json();
                 if (data.models && Array.isArray(data.models)) {
-                    // DEBUG: Log sample model to check supported_parameters
-                    const gpt5Model = data.models.find((m: Model) => m.id.includes('gpt-5'));
-                    console.log('[useModels] Sample GPT-5 model from API:', JSON.stringify({
-                        id: gpt5Model?.id,
-                        supported_parameters: gpt5Model?.supported_parameters
-                    }, null, 2));
-
                     // Validate fallback models against live API on successful fetch
                     const { invalidIds } = validateFallbackModels(data.models);
                     setValidatedFallback(

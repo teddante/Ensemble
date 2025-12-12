@@ -57,32 +57,25 @@ export async function GET(request: NextRequest) {
         const response = await client.models.list();
         const data = response.data;
 
-        // DEBUG: Log a sample model's raw data to check supported_parameters
-        const gpt5Model = data.find((m: any) => m.id.includes('gpt-5') || m.id.includes('o1'));
-        if (gpt5Model) {
-            console.log('[models/route] Sample reasoning model raw data:', JSON.stringify({
-                id: gpt5Model.id,
-                name: gpt5Model.name,
-                supported_parameters: gpt5Model.supported_parameters
-            }, null, 2));
-        }
-
         // Transform to our internal Model interface
+        // Note: OpenRouter SDK uses camelCase (e.g., supportedParameters, contextLength)
+        // but raw API responses use snake_case. The SDK normalizes to camelCase.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const models = data.map((m: any) => ({
             id: m.id,
             name: m.name,
             provider: m.id.split('/')[0],
             description: m.description || '',
-            contextWindow: m.context_length,
-            // Extended fields from OpenRouter docs
-            canonical_slug: m.canonical_slug,
+            // SDK uses camelCase: contextLength, supportedParameters, topProvider, perRequestLimits
+            contextWindow: m.contextLength || m.context_length,
+            // Extended fields - handle both SDK camelCase and raw API snake_case
+            canonical_slug: m.canonicalSlug || m.canonical_slug,
             created: m.created,
-            supported_parameters: m.supported_parameters,
+            supported_parameters: m.supportedParameters || m.supported_parameters,
             pricing: m.pricing,
             architecture: m.architecture,
-            top_provider: m.top_provider,
-            per_request_limits: m.per_request_limits
+            top_provider: m.topProvider || m.top_provider,
+            per_request_limits: m.perRequestLimits || m.per_request_limits
         }));
 
         return NextResponse.json({ models });
