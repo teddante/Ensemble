@@ -35,7 +35,9 @@ function getCachedModels(): CachedModels | null {
 
             // Check version - invalidate old caches
             if (parsed.version !== CACHE_VERSION) {
-                console.log('[useModels] Cache version mismatch, invalidating. Expected:', CACHE_VERSION, 'Got:', parsed.version);
+                if (process.env.NODE_ENV === 'development') {
+                    console.log('[useModels] Cache version mismatch, invalidating. Expected:', CACHE_VERSION, 'Got:', parsed.version);
+                }
                 localStorage.removeItem(CACHE_KEY);
                 return null;
             }
@@ -44,7 +46,9 @@ function getCachedModels(): CachedModels | null {
             if (Date.now() - parsed.timestamp < MODELS_CACHE_TTL) {
                 // Validate that models have expected fields (spot check first model)
                 if (parsed.models.length > 0 && parsed.models[0].supported_parameters === undefined) {
-                    console.log('[useModels] Cache missing supported_parameters, invalidating');
+                    if (process.env.NODE_ENV === 'development') {
+                        console.log('[useModels] Cache missing supported_parameters, invalidating');
+                    }
                     localStorage.removeItem(CACHE_KEY);
                     return null;
                 }

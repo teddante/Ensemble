@@ -1,190 +1,109 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Use vi.hoisted() to create mocks that are available during vi.mock hoisting
+const { mocks } = vi.hoisted(() => ({
+    mocks: {
+        limit: vi.fn(),
+    }
+}));
+
+// Mock the Upstash modules with proper class constructors
+vi.mock('@upstash/ratelimit', () => {
+    return {
+        Ratelimit: class MockRatelimit {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            static slidingWindow = vi.fn().mockReturnValue({} as any);
+            limit = mocks.limit;
+        }
+    };
+});
+
+vi.mock('@upstash/redis', () => {
+    return {
+        Redis: class MockRedis {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+            constructor(_config: any) { }
+        }
+    };
+});
+
+// Import AFTER mocks are set up
 import { RateLimiter, getClientIdentifier } from './rateLimit';
 
 describe('RateLimiter', () => {
     let limiter: RateLimiter;
 
     beforeEach(() => {
-        vi.useFakeTimers();
+        vi.clearAllMocks();
+        // Reset mock implementation
+        mocks.limit.mockResolvedValue({
+            success: true,
+            remaining: 49,
+            reset: Date.now() + 60000,
+        });
     });
 
     afterEach(() => {
         if (limiter) {
             limiter.destroy();
         }
-        vi.useRealTimers();
     });
 
-    describe('Token Bucket Initialization', () => {
-        it('should start new buckets with max tokens', async () => {
-            limiter = new RateLimiter(10, 1);
+    describe('check()', () => {
+        it('should return success when rate limit not exceeded', async () => {
+            limiter = new RateLimiter(50, 50 / 60);
 
             const result = await limiter.check('test-client');
 
             expect(result.success).toBe(true);
-            expect(result.remaining).toBe(9); // 10 - 1 consumed
+            expect(result.remaining).toBeGreaterThanOrEqual(0);
         });
 
-        it('should use provided maxTokens and refillRate', async () => {
-            limiter = new RateLimiter(5, 0.5);
+        it('should handle different client identifiers', async () => {
+            limiter = new RateLimiter(50, 50 / 60);
 
-            // Consume all 5 tokens
-            for (let i = 0; i < 5; i++) {
-                await limiter.check('test-client');
-            }
-
-            const result = await limiter.check('test-client');
-            expect(result.success).toBe(false);
-            expect(result.remaining).toBe(0);
-        });
-    });
-
-    describe('Token Consumption', () => {
-        it('should decrement tokens on each check', async () => {
-            limiter = new RateLimiter(10, 1);
-
-            const result1 = await limiter.check('test-client');
-            expect(result1.remaining).toBe(9);
-
-            const result2 = await limiter.check('test-client');
-            expect(result2.remaining).toBe(8);
-
-            const result3 = await limiter.check('test-client');
-            expect(result3.remaining).toBe(7);
-        });
-
-        it('should track different clients separately', async () => {
-            limiter = new RateLimiter(3, 1);
-
-            await limiter.check('client-a');
-            await limiter.check('client-a');
             const resultA = await limiter.check('client-a');
-            expect(resultA.remaining).toBe(0);
-
             const resultB = await limiter.check('client-b');
-            expect(resultB.remaining).toBe(2);
-        });
-    });
 
-    describe('Token Refill Logic', () => {
-        it('should refill tokens over time', async () => {
-            limiter = new RateLimiter(10, 1); // 1 token per second
-
-            // Consume 5 tokens
-            for (let i = 0; i < 5; i++) {
-                await limiter.check('test-client');
-            }
-            let result = await limiter.check('test-client');
-            expect(result.remaining).toBe(4);
-
-            // Advance 3 seconds (should refill 3 tokens)
-            vi.advanceTimersByTime(3000);
-
-            result = await limiter.check('test-client');
-            // 4 + 3 refilled - 1 consumed = 6
-            expect(result.remaining).toBe(6);
+            // Both should succeed (mocked)
+            expect(resultA.success).toBe(true);
+            expect(resultB.success).toBe(true);
         });
 
-        it('should not exceed maxTokens when refilling', async () => {
-            limiter = new RateLimiter(10, 1);
+        it('should return retryAfter when rate limited', async () => {
+            mocks.limit.mockResolvedValueOnce({
+                success: false,
+                remaining: 0,
+                reset: Date.now() + 30000,
+            });
 
-            // Consume 1 token
-            await limiter.check('test-client');
-
-            // Advance a long time
-            vi.advanceTimersByTime(1000000);
+            limiter = new RateLimiter(50, 50 / 60);
 
             const result = await limiter.check('test-client');
-            // Should be capped at 10 - 1 = 9
-            expect(result.remaining).toBe(9);
-        });
-    });
 
-    describe('Rate Limiting', () => {
-        it('should return success: false when bucket is empty', async () => {
-            limiter = new RateLimiter(3, 1);
-
-            await limiter.check('test-client');
-            await limiter.check('test-client');
-            await limiter.check('test-client');
-
-            const result = await limiter.check('test-client');
             expect(result.success).toBe(false);
             expect(result.remaining).toBe(0);
+            expect(result.retryAfter).toBeGreaterThan(0);
         });
 
-        it('should calculate correct retryAfter time', async () => {
-            limiter = new RateLimiter(1, 1); // 1 token, 1 token/second
+        it('should fail open if Redis is unavailable', async () => {
+            mocks.limit.mockRejectedValueOnce(new Error('Redis connection failed'));
 
-            await limiter.check('test-client');
+            limiter = new RateLimiter(50, 50 / 60);
+
             const result = await limiter.check('test-client');
 
-            expect(result.success).toBe(false);
-            expect(result.retryAfter).toBe(1); // 1 second until next token
-        });
-
-        it('should allow requests after refill', async () => {
-            limiter = new RateLimiter(1, 1);
-
-            await limiter.check('test-client');
-            let result = await limiter.check('test-client');
-            expect(result.success).toBe(false);
-
-            // Wait for refill
-            vi.advanceTimersByTime(1500);
-
-            result = await limiter.check('test-client');
+            // Should fail open (allow request)
             expect(result.success).toBe(true);
-        });
-    });
-
-    describe('Cleanup', () => {
-        it('should cleanup expired buckets', async () => {
-            limiter = new RateLimiter(10, 1);
-
-            // Create a bucket
-            await limiter.check('test-client');
-
-            // Access internal buckets via check - this test verifies cleanup doesn't break functionality
-            // Advance past cleanup interval (60s) + bucket expiry time
-            vi.advanceTimersByTime(120000);
-
-            // After cleanup, a new check should create a fresh bucket
-            const result = await limiter.check('test-client');
-            expect(result.success).toBe(true);
-            expect(result.remaining).toBe(9); // Fresh bucket
-        });
-    });
-
-    describe('reset()', () => {
-        it('should remove a specific client bucket', async () => {
-            limiter = new RateLimiter(10, 1);
-
-            // Consume some tokens
-            await limiter.check('test-client');
-            await limiter.check('test-client');
-            await limiter.check('test-client');
-
-            // Reset the bucket
-            limiter.reset('test-client');
-
-            // Should get a fresh bucket
-            const result = await limiter.check('test-client');
-            expect(result.remaining).toBe(9);
+            expect(result.remaining).toBe(1);
         });
     });
 
     describe('destroy()', () => {
-        it('should clear the cleanup interval', () => {
+        it('should be callable without error', () => {
             limiter = new RateLimiter(10, 1);
 
-            // Spy on clearInterval
-            const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
-
-            limiter.destroy();
-
-            expect(clearIntervalSpy).toHaveBeenCalled();
-            clearIntervalSpy.mockRestore();
+            expect(() => limiter.destroy()).not.toThrow();
         });
 
         it('should be safe to call multiple times', () => {
@@ -194,6 +113,14 @@ describe('RateLimiter', () => {
                 limiter.destroy();
                 limiter.destroy();
             }).not.toThrow();
+        });
+    });
+
+    describe('reset()', () => {
+        it('should be callable without error', () => {
+            limiter = new RateLimiter(10, 1);
+
+            expect(() => limiter.reset('test-client')).not.toThrow();
         });
     });
 });

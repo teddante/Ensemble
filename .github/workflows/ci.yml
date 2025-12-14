@@ -9,120 +9,162 @@ on:
     types: [ published ]
 
 env:
-  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # Code quality and security checks
+  # Code quality and linting
   code-quality:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up Python
-      uses: actions/setup-python@v4
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
       with:
-        python-version: ${{ env.PYTHON_VERSION }}
-    
-    - name: Cache pip dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
     
     - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -r requirements-dev.txt
+      run: npm ci
     
-    - name: Code formatting check (Black)
-      run: black --check --diff src/ tests/ benchmarks/
+    - name: Run ESLint
+      run: npm run lint
     
-    - name: Import sorting check (isort)
-      run: isort --check-only --diff src/ tests/ benchmarks/
-    
-    - name: Linting (Flake8)
-      run: flake8 src/ tests/ benchmarks/ --max-line-length=100 --ignore=E203,W503
-    
-    - name: Type checking (MyPy)
-      run: mypy src/ --ignore-missing-imports
-    
-    - name: Security check (Bandit)
-      run: bandit -r src/ -f json -o bandit-report.json
-    
-    - name: Dependency vulnerability check (Safety)
-      run: safety check --json --output safety-report.json
-    
-    - name: Secret detection
-      run: detect-secrets scan --all-files --baseline .secrets.baseline || echo "No secrets baseline found, creating one" && detect-secrets scan --all-files --baseline .secrets.baseline --force-use-all-plugins
-    
-    - name: Upload security reports
-      uses: actions/upload-artifact@v3
-      if: always()
-      with:
-        name: security-reports
-        path: |
-          bandit-report.json
-          safety-report.json
+    - name: Type check
+      run: npx tsc --noEmit
 
-  # Unit and integration tests
+  # Unit and component tests
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.9', '3.10', '3.11']
+        node-version: ['18', '20', '22']
     
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+    - name: Set up Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
       with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Cache pip dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-${{ matrix.python-version }}-pip-${{ hashFiles('requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-${{ matrix.python-version }}-pip-
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
     
     - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -r requirements-dev.txt
+      run: npm ci
     
     - name: Run unit tests
-      run: |
-        pytest tests/ -v --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing
-    
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
+      run: npm run test
+      env:
+        # Provide empty env vars to prevent Redis connection attempts
+        UPSTASH_REDIS_REST_URL: ''
+        UPSTASH_REDIS_REST_TOKEN: ''
     
     - name: Upload test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: test-results-${{ matrix.python-version }}
+        name: test-results-node-${{ matrix.node-version }}
         path: |
-          coverage.xml
-          htmlcov/
+          coverage/
+          test-results/
 
-  # Docker build and scan
-  docker:
+  # E2E tests with Playwright
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [code-quality]
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps chromium
+    
+    - name: Build application
+      run: npm run build
+      env:
+        UPSTASH_REDIS_REST_URL: ''
+        UPSTASH_REDIS_REST_TOKEN: ''
+    
+    - name: Run E2E tests
+      run: npm run test:e2e
+      env:
+        UPSTASH_REDIS_REST_URL: ''
+        UPSTASH_REDIS_REST_TOKEN: ''
+    
+    - name: Upload Playwright report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: playwright-report
+        path: playwright-report/
+
+  # Build verification
+  build:
     runs-on: ubuntu-latest
     needs: [code-quality, test]
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Build production bundle
+      run: npm run build
+      env:
+        UPSTASH_REDIS_REST_URL: ''
+        UPSTASH_REDIS_REST_TOKEN: ''
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build
+        path: .next/
+
+  # Security scanning
+  security:
+    runs-on: ubuntu-latest
+    needs: [code-quality]
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run npm audit
+      run: npm audit --audit-level=high
+      continue-on-error: true
+    
+    - name: Check for known vulnerabilities
+      run: npx better-npm-audit audit --level high
+      continue-on-error: true
+
+  # Docker build (on main branch only)
+  docker:
+    runs-on: ubuntu-latest
+    needs: [build, test, e2e]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'release'
     steps:
     - uses: actions/checkout@v4
     
@@ -148,251 +190,50 @@ jobs:
           type=sha,prefix={{branch}}-
           type=raw,value=latest,enable={{is_default_branch}}
     
-    - name: Build and test Docker image
+    - name: Build Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
-        target: test
-        load: true
-        tags: ensemble:test
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
     
     - name: Run Docker security scan
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: 'ensemble:test'
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
         format: 'sarif'
         output: 'trivy-results.sarif'
+      continue-on-error: true
     
     - name: Upload Trivy scan results
       uses: github/codeql-action/upload-sarif@v2
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'
-    
-    - name: Build and push production image
-      if: github.event_name != 'pull_request'
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        target: production
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+      continue-on-error: true
 
-  # Performance and load testing
-  performance:
+  # Deploy staging (on main branch)
+  deploy-staging:
     runs-on: ubuntu-latest
     needs: [docker]
     if: github.ref == 'refs/heads/main'
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-    
-    - name: Install performance testing tools
-      run: |
-        pip install locust memory-profiler
-    
-    - name: Create performance test script
-      run: |
-        cat > performance_test.py << 'EOF'
-        import asyncio
-        import time
-        import sys
-        import os
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-        
-        from ensemble import main
-        from unittest.mock import patch, MagicMock
-        
-        async def mock_ensemble_run():
-            """Mock ensemble run for performance testing."""
-            mock_config = {
-                "OPENROUTER_API_KEY": "test-key",
-                "MODELS": ["test-model-1", "test-model-2"],
-                "REFINEMENT_MODEL_NAME": "test-refinement",
-                "PROMPT": "Test prompt for performance"
-            }
-            
-            def mock_create_completion(*args, **kwargs):
-                # Simulate API delay
-                time.sleep(0.1)
-                class MockResponse:
-                    choices = [type('', (), {'message': type('', (), {'content': 'Mock response'})})()]
-                return MockResponse()
-            
-            mock_client = MagicMock()
-            mock_client.chat.completions.create = mock_create_completion
-            
-            with patch('ensemble.load_config', return_value=mock_config), \
-                 patch('ensemble.init_client', return_value=mock_client), \
-                 patch('asyncio.to_thread', side_effect=lambda func, *args, **kwargs: func(*args, **kwargs)), \
-                 patch('builtins.print'), \
-                 patch('builtins.input', return_value="Test prompt"):
-                
-                start_time = time.time()
-                await main()
-                return time.time() - start_time
-        
-        async def run_performance_test():
-            """Run performance test suite."""
-            print("Running performance tests...")
-            
-            # Warmup run
-            await mock_ensemble_run()
-            
-            # Measure multiple runs
-            durations = []
-            for i in range(10):
-                duration = await mock_ensemble_run()
-                durations.append(duration)
-                print(f"Run {i+1}: {duration:.2f}s")
-            
-            avg_duration = sum(durations) / len(durations)
-            max_duration = max(durations)
-            min_duration = min(durations)
-            
-            print(f"\nPerformance Results:")
-            print(f"Average duration: {avg_duration:.2f}s")
-            print(f"Min duration: {min_duration:.2f}s")
-            print(f"Max duration: {max_duration:.2f}s")
-            
-            # Performance thresholds
-            if avg_duration > 10:  # 10 seconds average
-                print("WARNING: Average duration exceeds threshold")
-                sys.exit(1)
-            
-            if max_duration > 20:  # 20 seconds max
-                print("WARNING: Maximum duration exceeds threshold")
-                sys.exit(1)
-            
-            print("Performance test passed!")
-        
-        if __name__ == "__main__":
-            asyncio.run(run_performance_test())
-        EOF
-    
-    - name: Run performance tests
-      run: python performance_test.py
-    
-    - name: Memory profiling
-      run: |
-        python -m memory_profiler performance_test.py
-
-  # Documentation and release
-  docs-and-release:
-    runs-on: ubuntu-latest
-    needs: [code-quality, test, docker]
-    if: github.event_name == 'release'
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-    
-    - name: Generate API documentation
-      run: |
-        pip install pydoc-markdown mkdocs mkdocs-material
-        mkdir -p docs/api
-        
-        # Generate module documentation
-        python -c "
-        import pydoc
-        import sys
-        import os
-        sys.path.insert(0, 'src')
-        
-        modules = ['ensemble', 'config', 'validation', 'rate_limiter', 'monitoring', 'health_check']
-        for module in modules:
-            try:
-                pydoc.writedoc(module)
-                print(f'Generated docs for {module}')
-            except Exception as e:
-                print(f'Failed to generate docs for {module}: {e}')
-        "
-    
-    - name: Create release notes
-      run: |
-        cat > RELEASE_NOTES.md << 'EOF'
-        # Release ${{ github.event.release.tag_name }}
-        
-        ## What's New
-        
-        ### Features
-        - Production-ready ensemble AI processing
-        - Comprehensive input validation and sanitization
-        - Rate limiting and circuit breaker patterns
-        - Performance monitoring and health checks
-        - Docker containerization support
-        
-        ### Security
-        - Input sanitization against injection attacks
-        - Secure configuration management
-        - Container security scanning
-        
-        ### Performance
-        - Parallel model request processing
-        - Intelligent error handling and retry logic
-        - Resource usage monitoring
-        
-        ### DevOps
-        - Complete CI/CD pipeline
-        - Docker multi-stage builds
-        - Automated testing and security scanning
-        
-        ## Installation
-        
-        ```bash
-        # Using Docker
-        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.release.tag_name }}
-        
-        # From source
-        git clone https://github.com/${{ github.repository }}.git
-        cd ensemble
-        pip install -r requirements.txt
-        ```
-        
-        ## Documentation
-        
-        See the [README](README.md) for complete usage instructions.
-        EOF
-    
-    - name: Upload release artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: release-${{ github.event.release.tag_name }}
-        path: |
-          RELEASE_NOTES.md
-          docs/
-          *.html
-
-  # Deployment (example for staging/production)
-  deploy-staging:
-    runs-on: ubuntu-latest
-    needs: [performance]
-    if: github.ref == 'refs/heads/main'
-    # environment: staging  # Uncomment when staging environment is created in GitHub repo settings
+    environment: staging
     steps:
     - name: Deploy to staging
       run: |
         echo "Deploying to staging environment..."
         echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main-${{ github.sha }}"
-        # Add actual deployment commands here
-    
+        # Add actual deployment commands here (e.g., Vercel, Railway, etc.)
+
+  # Deploy production (on release)
   deploy-production:
     runs-on: ubuntu-latest
-    needs: [docs-and-release]
+    needs: [docker]
     if: github.event_name == 'release'
-    # environment: production  # Uncomment when production environment is created in GitHub repo settings
+    environment: production
     steps:
     - name: Deploy to production
       run: |

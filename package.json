@@ -1,5 +1,5 @@
 {
-  "name": "web",
+  "name": "ensemble",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -15,8 +15,6 @@
   },
   "dependencies": {
     "@openrouter/sdk": "^0.2.9",
-    "@types/react-syntax-highlighter": "^15.5.13",
-    "@types/uuid": "^10.0.0",
     "@upstash/ratelimit": "^2.0.7",
     "@upstash/redis": "^1.35.7",
     "ai": "^5.0.107",
@@ -40,6 +38,8 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^5.1.1",
     "dotenv-cli": "^11.0.0",
     "eslint": "^9",

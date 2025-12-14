@@ -435,7 +435,7 @@ export default function Home() {
       await reader.cancel();
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
-        console.log('Request aborted');
+        // Request was cancelled by user - this is expected, no action needed
       } else {
         const message = err instanceof Error ? err.message : 'An error occurred';
         setError(message);

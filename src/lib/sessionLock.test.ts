@@ -1,193 +1,171 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Use vi.hoisted() to create mocks that are available during vi.mock hoisting
+const { mocks } = vi.hoisted(() => ({
+    mocks: {
+        set: vi.fn(),
+        del: vi.fn(),
+        exists: vi.fn(),
+        ttl: vi.fn(),
+    }
+}));
+
+// Mock the Upstash Redis module with proper class constructor
+vi.mock('@upstash/redis', () => {
+    return {
+        Redis: class MockRedis {
+            set = mocks.set;
+            del = mocks.del;
+            exists = mocks.exists;
+            ttl = mocks.ttl;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+            constructor(_config: any) { }
+        }
+    };
+});
+
+// Import AFTER mocks are set up
 import { SessionLockManager, getSessionIdentifier } from './sessionLock';
 
 describe('SessionLockManager', () => {
     let lockManager: SessionLockManager;
 
     beforeEach(() => {
-        vi.useFakeTimers();
+        vi.clearAllMocks();
+        // Reset mock implementations
+        mocks.set.mockResolvedValue('OK');
+        mocks.del.mockResolvedValue(1);
+        mocks.exists.mockResolvedValue(0);
+        mocks.ttl.mockResolvedValue(-2);
     });
 
     afterEach(() => {
         if (lockManager) {
             lockManager.destroy();
         }
-        vi.useRealTimers();
     });
 
-    describe('Lock Acquisition', () => {
-        it('should acquire lock for new session', () => {
+    describe('acquire()', () => {
+        it('should return true when lock is acquired successfully', async () => {
             lockManager = new SessionLockManager(60000);
 
-            const result = lockManager.acquire('session-1');
+            const result = await lockManager.acquire('session-1');
             expect(result).toBe(true);
         });
 
-        it('should allow multiple different sessions to acquire locks', () => {
+        it('should return false when lock already exists', async () => {
+            mocks.set.mockResolvedValueOnce(null); // NX condition not met
+
             lockManager = new SessionLockManager(60000);
 
-            expect(lockManager.acquire('session-1')).toBe(true);
-            expect(lockManager.acquire('session-2')).toBe(true);
-            expect(lockManager.acquire('session-3')).toBe(true);
-        });
-    });
-
-    describe('Lock Rejection', () => {
-        it('should reject lock acquisition when session is already locked', () => {
-            lockManager = new SessionLockManager(60000);
-
-            lockManager.acquire('session-1');
-            const result = lockManager.acquire('session-1');
-
+            const result = await lockManager.acquire('session-1');
             expect(result).toBe(false);
         });
 
-        it('should allow lock after explicit release', () => {
+        it('should fail open if Redis is unavailable', async () => {
+            mocks.set.mockRejectedValueOnce(new Error('Redis connection failed'));
+
             lockManager = new SessionLockManager(60000);
 
-            lockManager.acquire('session-1');
-            lockManager.release('session-1');
-
-            const result = lockManager.acquire('session-1');
-            expect(result).toBe(true);
-        });
-    });
-
-    describe('Lock Expiry', () => {
-        it('should allow lock acquisition after lock expires', () => {
-            lockManager = new SessionLockManager(5000); // 5 second lock
-
-            lockManager.acquire('session-1');
-
-            // Advance past expiry
-            vi.advanceTimersByTime(6000);
-
-            const result = lockManager.acquire('session-1');
+            const result = await lockManager.acquire('session-1');
+            // Should fail open (allow request)
             expect(result).toBe(true);
         });
 
-        it('should reject lock before expiry', () => {
-            lockManager = new SessionLockManager(10000); // 10 second lock
-
-            lockManager.acquire('session-1');
-
-            // Advance less than expiry
-            vi.advanceTimersByTime(5000);
-
-            const result = lockManager.acquire('session-1');
-            expect(result).toBe(false);
-        });
-
-        it('should use custom duration when provided', () => {
+        it('should use custom duration when provided', async () => {
             lockManager = new SessionLockManager(60000);
 
-            lockManager.acquire('session-1', 2000); // 2 second custom duration
+            await lockManager.acquire('session-1', 2000);
 
-            vi.advanceTimersByTime(2500);
-
-            const result = lockManager.acquire('session-1');
-            expect(result).toBe(true);
+            expect(mocks.set).toHaveBeenCalledWith(
+                'ensemble:lock:session-1',
+                '1',
+                { nx: true, px: 2000 }
+            );
         });
     });
 
     describe('release()', () => {
-        it('should release an acquired lock', () => {
+        it('should call Redis del', async () => {
             lockManager = new SessionLockManager(60000);
 
-            lockManager.acquire('session-1');
-            expect(lockManager.isLocked('session-1')).toBe(true);
+            await lockManager.release('session-1');
 
-            lockManager.release('session-1');
-            expect(lockManager.isLocked('session-1')).toBe(false);
+            expect(mocks.del).toHaveBeenCalledWith('ensemble:lock:session-1');
         });
 
-        it('should be safe to release non-existent lock', () => {
+        it('should not throw on Redis error', async () => {
+            mocks.del.mockRejectedValueOnce(new Error('Redis error'));
+
             lockManager = new SessionLockManager(60000);
 
-            expect(() => {
-                lockManager.release('non-existent');
-            }).not.toThrow();
+            await expect(lockManager.release('session-1')).resolves.not.toThrow();
         });
     });
 
     describe('isLocked()', () => {
-        it('should return true for locked session', () => {
+        it('should return true when key exists', async () => {
+            mocks.exists.mockResolvedValueOnce(1);
+
             lockManager = new SessionLockManager(60000);
 
-            lockManager.acquire('session-1');
-            expect(lockManager.isLocked('session-1')).toBe(true);
+            const result = await lockManager.isLocked('session-1');
+            expect(result).toBe(true);
         });
 
-        it('should return false for unlocked session', () => {
+        it('should return false when key does not exist', async () => {
+            mocks.exists.mockResolvedValueOnce(0);
+
             lockManager = new SessionLockManager(60000);
 
-            expect(lockManager.isLocked('session-1')).toBe(false);
+            const result = await lockManager.isLocked('session-1');
+            expect(result).toBe(false);
         });
 
-        it('should return false after lock expires and cleanup entry', () => {
-            lockManager = new SessionLockManager(5000);
+        it('should return false on Redis error', async () => {
+            mocks.exists.mockRejectedValueOnce(new Error('Redis error'));
 
-            lockManager.acquire('session-1');
-            vi.advanceTimersByTime(6000);
+            lockManager = new SessionLockManager(60000);
 
-            expect(lockManager.isLocked('session-1')).toBe(false);
+            const result = await lockManager.isLocked('session-1');
+            expect(result).toBe(false);
         });
     });
 
     describe('getRemainingTime()', () => {
-        it('should return correct remaining time', () => {
-            lockManager = new SessionLockManager(10000);
+        it('should return remaining time in milliseconds', async () => {
+            mocks.ttl.mockResolvedValueOnce(7); // 7 seconds
 
-            lockManager.acquire('session-1');
-            vi.advanceTimersByTime(3000);
-
-            const remaining = lockManager.getRemainingTime('session-1');
-            expect(remaining).toBe(7000); // 10000 - 3000
-        });
-
-        it('should return 0 for non-existent session', () => {
             lockManager = new SessionLockManager(60000);
 
-            const remaining = lockManager.getRemainingTime('non-existent');
+            const remaining = await lockManager.getRemainingTime('session-1');
+            expect(remaining).toBe(7000); // 7 seconds in ms
+        });
+
+        it('should return 0 for non-existent key', async () => {
+            mocks.ttl.mockResolvedValueOnce(-2); // Key doesn't exist
+
+            lockManager = new SessionLockManager(60000);
+
+            const remaining = await lockManager.getRemainingTime('session-1');
             expect(remaining).toBe(0);
         });
 
-        it('should return 0 after lock expires', () => {
-            lockManager = new SessionLockManager(5000);
+        it('should return 0 on Redis error', async () => {
+            mocks.ttl.mockRejectedValueOnce(new Error('Redis error'));
 
-            lockManager.acquire('session-1');
-            vi.advanceTimersByTime(6000);
+            lockManager = new SessionLockManager(60000);
 
-            const remaining = lockManager.getRemainingTime('session-1');
+            const remaining = await lockManager.getRemainingTime('session-1');
             expect(remaining).toBe(0);
-        });
-    });
-
-    describe('Cleanup', () => {
-        it('should cleanup expired locks during periodic cleanup', () => {
-            lockManager = new SessionLockManager(5000);
-
-            lockManager.acquire('session-1');
-
-            // Advance past lock expiry and cleanup interval (30s)
-            vi.advanceTimersByTime(35000);
-
-            // The lock should be expired and cleaned up
-            const result = lockManager.acquire('session-1');
-            expect(result).toBe(true);
         });
     });
 
     describe('destroy()', () => {
-        it('should clear the cleanup interval', () => {
+        it('should be callable without error', () => {
             lockManager = new SessionLockManager(60000);
 
-            const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
-
-            lockManager.destroy();
-
-            expect(clearIntervalSpy).toHaveBeenCalled();
-            clearIntervalSpy.mockRestore();
+            expect(() => lockManager.destroy()).not.toThrow();
         });
 
         it('should be safe to call multiple times', () => {
