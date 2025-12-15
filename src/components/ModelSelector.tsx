@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { Check, Search, ChevronDown, ChevronRight, X, Zap } from 'lucide-react';
+import { Check, Search, ChevronDown, ChevronRight, X, Zap, Wrench, Eye, Brain, Braces } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
 import { Model } from '@/types';
+import { formatContextLength, formatPricing, getModelCapabilities } from '@/lib/modelUtils';
 
 interface ModelSelectorProps {
     models: Model[];
@@ -236,6 +237,9 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
                                             {providerModels.map((model) => {
                                                 const isSelected = settings.selectedModels.includes(model.id);
                                                 const isFree = isFreeModel(model);
+                                                const capabilities = getModelCapabilities(model);
+                                                const contextStr = formatContextLength(model.contextWindow);
+                                                const pricingStr = formatPricing(model.pricing);
                                                 return (
                                                     <button
                                                         key={model.id}
@@ -247,11 +251,33 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
                                                         <div className="model-option-check">
                                                             {isSelected && <Check size={12} />}
                                                         </div>
-                                                        <span className="model-option-name">{model.name}</span>
-                                                        {isFree && <span className="free-indicator">FREE</span>}
+                                                        <div className="model-option-info">
+                                                            <span className="model-option-name">{model.name}</span>
+                                                            <span className="model-option-meta">
+                                                                {contextStr && <span className="meta-context">{contextStr}</span>}
+                                                                {contextStr && pricingStr && <span className="meta-separator">•</span>}
+                                                                {pricingStr && <span className={`meta-pricing ${isFree ? 'free' : ''}`}>{pricingStr}</span>}
+                                                            </span>
+                                                        </div>
+                                                        <div className="model-option-badges">
+                                                            {capabilities.includes('vision') && (
+                                                                <span className="capability-badge" title="Vision"><Eye size={10} /></span>
+                                                            )}
+                                                            {capabilities.includes('tools') && (
+                                                                <span className="capability-badge" title="Function Calling"><Wrench size={10} /></span>
+                                                            )}
+                                                            {capabilities.includes('reasoning') && (
+                                                                <span className="capability-badge reasoning" title="Reasoning"><Brain size={10} /></span>
+                                                            )}
+                                                            {capabilities.includes('json') && (
+                                                                <span className="capability-badge" title="Structured Output"><Braces size={10} /></span>
+                                                            )}
+                                                            {isFree && <span className="free-indicator">FREE</span>}
+                                                        </div>
                                                     </button>
                                                 );
                                             })}
+
                                         </div>
                                     )}
                                 </div>
