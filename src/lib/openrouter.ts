@@ -2,24 +2,26 @@
 import { OpenRouter } from '@openrouter/sdk';
 import { ReasoningParams, Message } from '@/types';
 import { OpenRouterUsage, OpenRouterDelta } from '@/types/openrouter.types';
-import { MAX_SYNTHESIS_CHARS, MAX_RETRIES, INITIAL_RETRY_DELAY_MS, REQUEST_TIMEOUT_MS } from '@/lib/constants';
+import { MAX_SYNTHESIS_CHARS, MAX_RETRIES, INITIAL_RETRY_DELAY_MS, REQUEST_TIMEOUT_MS, ACTIVITY_TIMEOUT_MS } from '@/lib/constants';
 
 // Re-export for backward compatibility
 export { MAX_SYNTHESIS_CHARS };
 
 // Retry configuration
-const RETRYABLE_STATUS_CODES = [429, 502, 503, 504];
+const RETRYABLE_STATUS_CODES = [429, 502, 503, 504, 408, 524]; // Added 408 (Request Timeout) and 524 (Cloudflare timeout)
 
 // Check if an error is retryable
 function isRetryableError(error: unknown): boolean {
     if (error instanceof Error) {
         const message = error.message.toLowerCase();
-        // Check for rate limiting or server errors
+        // Check for rate limiting, timeouts, or server errors
         if (message.includes('rate limit') ||
             message.includes('too many requests') ||
             message.includes('service unavailable') ||
             message.includes('bad gateway') ||
-            message.includes('gateway timeout')) {
+            message.includes('gateway timeout') ||
+            message.includes('timeout') ||
+            message.includes('timed out')) {
             return true;
         }
         // Check for status code in error message
@@ -75,13 +77,6 @@ export async function streamModelResponse({
 }: StreamOptions): Promise<void> {
     const client = createOpenRouterClient(apiKey);
 
-    // Create a combined signal with timeout
-    // AbortSignal.any() is available in modern runtimes (Node 20+, Edge)
-    const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
-    const combinedSignal = signal
-        ? AbortSignal.any([signal, timeoutSignal])
-        : timeoutSignal;
-
     let lastError: Error | null = null;
 
     // Prepare messages for chat completion
@@ -90,16 +85,44 @@ export async function streamModelResponse({
         : [{ role: 'user', content: prompt }];
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-        // Check if already aborted
+        // Check if already aborted by user
         if (signal?.aborted) {
             onError('Request cancelled');
             return;
         }
 
+        // Create fresh AbortController for each attempt (controllers can only abort once)
+        const activityController = new AbortController();
+        let activityTimer: ReturnType<typeof setTimeout> | null = null;
+
+        const resetActivityTimeout = (timeoutMs: number = ACTIVITY_TIMEOUT_MS) => {
+            if (activityTimer) {
+                clearTimeout(activityTimer);
+            }
+            activityTimer = setTimeout(() => {
+                activityController.abort(new Error('Activity timeout - no response received'));
+            }, timeoutMs);
+        };
+
+        const clearActivityTimeout = () => {
+            if (activityTimer) {
+                clearTimeout(activityTimer);
+                activityTimer = null;
+            }
+        };
+
+        // Combine with user-provided signal if present
+        const combinedSignal = signal
+            ? AbortSignal.any([signal, activityController.signal])
+            : activityController.signal;
+
         let fullContent = '';
         let finalUsage: OpenRouterUsage | undefined;
 
         try {
+            // Start with initial connection timeout (longer - 120s for first response)
+            resetActivityTimeout(REQUEST_TIMEOUT_MS);
+
             const stream = await client.chat.send(
                 {
                     model,
@@ -117,7 +140,12 @@ export async function streamModelResponse({
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
             ) as any;
 
+            // Once streaming starts, switch to shorter activity timeout
+            resetActivityTimeout(ACTIVITY_TIMEOUT_MS);
+
             for await (const chunk of stream) {
+                // Reset activity timeout on each chunk - model is still responding
+                resetActivityTimeout(ACTIVITY_TIMEOUT_MS);
                 // Check for errors in chunk
                 if ('error' in chunk && chunk.error) {
                     const errorMessage = chunk.error.message || 'Unknown error';
@@ -177,33 +205,42 @@ export async function streamModelResponse({
                 }
             }
 
-            // If we got here without breaking, stream completed successfully
+            // Stream completed successfully - clear timeout and complete
+            clearActivityTimeout();
             if (!lastError || fullContent.length > 0) {
                 onComplete(fullContent, finalUsage);
                 return;
             }
         } catch (error) {
+            clearActivityTimeout();
             console.error(`Stream error for model ${model}:`, error); // Log the real error
             if (error instanceof Error) {
-                // Check if timeout vs user cancellation
-                if (error.name === 'TimeoutError' || error.message.includes('timeout')) {
-                    onError('Request timed out - the model took too long to respond');
-                    return;
-                }
-                if (error.name === 'AbortError') {
+                // Check if user explicitly cancelled (AbortError from user signal, not our timeout)
+                if (error.name === 'AbortError' && signal?.aborted) {
                     onError('Request cancelled');
                     return;
                 }
 
-                // Check if retryable
+                // Check if this is a retryable error (including timeouts)
                 if (attempt < MAX_RETRIES && isRetryableError(error)) {
                     lastError = error;
-                    console.warn(`Retry attempt ${attempt + 1} for model ${model}: ${error.message}`);
+                    const isTimeout = error.name === 'TimeoutError' ||
+                        error.message.includes('timeout') ||
+                        error.message.includes('Activity timeout');
+                    console.warn(`Retry attempt ${attempt + 1} for model ${model}: ${isTimeout ? 'timeout' : error.message}`);
+
+                    // Reset the activity controller for the retry
+                    // Note: We create a fresh timeout in the next iteration
                     await wait(attempt);
                     continue;
                 }
 
-                onError(error.message);
+                // Non-retryable error or all retries exhausted
+                if (error.name === 'TimeoutError' || error.message.includes('timeout')) {
+                    onError('Request timed out after all retry attempts');
+                } else {
+                    onError(error.message);
+                }
                 return;
             } else {
                 onError('Unknown error occurred');

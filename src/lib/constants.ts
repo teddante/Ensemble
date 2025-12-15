@@ -17,7 +17,8 @@ export const COOKIE_EXPIRY_DAYS = 30;
 // Retry Logic (Legitimate - prevents infinite loops)
 export const MAX_RETRIES = 3;
 export const INITIAL_RETRY_DELAY_MS = 1000;
-export const REQUEST_TIMEOUT_MS = 120000; // 120s timeout - prevents hung connections
+export const REQUEST_TIMEOUT_MS = 120000; // 120s timeout for initial connection - prevents hung connections
+export const ACTIVITY_TIMEOUT_MS = 30000; // 30s inactivity timeout - resets on each chunk received
 
 // Encryption
 export const ENCRYPTION_MAGIC_PREFIX = 'ENS:';
