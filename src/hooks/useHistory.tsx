@@ -3,7 +3,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { ModelResponse, Message } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
-import { MAX_HISTORY_ITEMS } from '@/lib/constants';
 
 export interface HistoryItem {
     id: string;
@@ -160,7 +159,8 @@ export function useHistory() {
         };
 
         setHistory(prev => {
-            const newHistory = [newItem, ...prev].slice(0, MAX_HISTORY_ITEMS);
+            // No artificial limit - LRU eviction in saveToLocalStorage handles storage limits
+            const newHistory = [newItem, ...prev];
             return newHistory;
         });
     }, []);

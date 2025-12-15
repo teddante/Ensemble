@@ -3,8 +3,6 @@ import { OpenRouter } from '@openrouter/sdk';
 import { validatePrompt, validateApiKey, validateModels } from '@/lib/validation';
 import { MAX_SYNTHESIS_CHARS, createSynthesisPrompt, streamModelResponse as libStreamModelResponse, validateSynthesisContext } from '@/lib/openrouter';
 import { StreamEvent, ReasoningParams, Message } from '@/types';
-import { generateRateLimiter, getClientIdentifier } from '@/lib/rateLimit';
-import { generationLock, getSessionIdentifier } from '@/lib/sessionLock';
 import { getApiKeyFromCookie } from '@/app/api/key/route';
 import { MAX_REQUEST_BODY_SIZE, REQUEST_TIMEOUT_MS } from '@/lib/constants';
 import { logger, generateRequestId } from '@/lib/logger';
@@ -100,40 +98,14 @@ async function generateSingleModelResponse(
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
-    const sessionId = getSessionIdentifier(request);
     const requestId = generateRequestId();
 
-    logger.info('Generation request started', { requestId, sessionId });
+    logger.info('Generation request started', { requestId });
 
     try {
-        // Rate limiting
-        const clientId = getClientIdentifier(request);
-        const rateLimit = await generateRateLimiter.check(clientId);
-
-        if (!rateLimit.success) {
-            logger.warn('Rate limit exceeded', { requestId, clientId });
-            return Response.json(
-                { error: 'Too many requests. Please wait before trying again.' },
-                {
-                    status: 429,
-                    headers: { 'Retry-After': String(rateLimit.retryAfter || 60) }
-                }
-            );
-        }
-
-        // Session lock - prevent concurrent generation for same session
-        if (!generationLock.acquire(sessionId)) {
-            logger.warn('Concurrent generation blocked', { requestId, sessionId });
-            return Response.json(
-                { error: 'A generation is already in progress. Please wait for it to complete.' },
-                { status: 409 }
-            );
-        }
-
-        // Check request body size
+        // Check request body size (legitimate server protection)
         const contentLength = request.headers.get('content-length');
         if (contentLength && parseInt(contentLength, 10) > MAX_REQUEST_BODY_SIZE) {
-            generationLock.release(sessionId);
             return Response.json(
                 { error: 'Request body too large' },
                 { status: 413 }
@@ -175,7 +147,6 @@ export async function POST(request: NextRequest): Promise<Response> {
         const apiKey: string | null = await getApiKeyFromCookie();
 
         if (!apiKey) {
-            generationLock.release(sessionId);
             return Response.json(
                 { error: 'API key not configured. Please set your API key in Settings.' },
                 { status: 401 }
@@ -185,19 +156,16 @@ export async function POST(request: NextRequest): Promise<Response> {
         // Validate inputs
         const promptValidation = validatePrompt(prompt);
         if (!promptValidation.isValid) {
-            generationLock.release(sessionId);
             return Response.json({ error: promptValidation.error }, { status: 400 });
         }
 
         const apiKeyValidation = validateApiKey(apiKey || '');
         if (!apiKeyValidation.isValid) {
-            generationLock.release(sessionId);
             return Response.json({ error: apiKeyValidation.error }, { status: 401 });
         }
 
         const modelsValidation = validateModels(models);
         if (!modelsValidation.isValid) {
-            generationLock.release(sessionId);
             return Response.json({ error: modelsValidation.error }, { status: 400 });
         }
 
@@ -270,7 +238,6 @@ export async function POST(request: NextRequest): Promise<Response> {
                             error: 'All models failed to generate responses'
                         });
                         controller.close();
-                        generationLock.release(sessionId);
                         return;
                     }
 
@@ -365,23 +332,19 @@ export async function POST(request: NextRequest): Promise<Response> {
 
                     sendEvent(controller, { type: 'complete' });
                     controller.close();
-                    generationLock.release(sessionId);
                 } catch (error) {
                     const errorMessage = handleOpenRouterError(error);
                     sendEvent(controller, { type: 'error', error: errorMessage });
                     controller.close();
-                    generationLock.release(sessionId);
                 }
             },
             cancel() {
                 abortController.abort();
-                generationLock.release(sessionId);
             },
         });
 
         return createSSEResponse(stream);
     } catch (error) {
-        generationLock.release(sessionId);
         console.error('Generation error:', error);
         return Response.json(
             { error: handleOpenRouterError(error) },

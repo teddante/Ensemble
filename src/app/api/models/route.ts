@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OpenRouter } from '@openrouter/sdk';
-import { modelsRateLimiter, getClientIdentifier } from '@/lib/rateLimit';
 import { handleOpenRouterError } from '@/lib/errors';
 
 export const runtime = 'edge';
@@ -21,20 +20,6 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(
             { error: 'Invalid request' },
             { status: 403 }
-        );
-    }
-
-    // Rate limiting
-    const clientId = getClientIdentifier(request);
-    const rateLimit = await modelsRateLimiter.check(clientId);
-
-    if (!rateLimit.success) {
-        return NextResponse.json(
-            { error: 'Too many requests' },
-            {
-                status: 429,
-                headers: { 'Retry-After': String(rateLimit.retryAfter || 60) }
-            }
         );
     }
 

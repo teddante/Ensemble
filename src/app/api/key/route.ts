@@ -2,7 +2,6 @@ import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateApiKey } from '@/lib/validation';
 import { encrypt, decrypt, isEncrypted } from '@/lib/crypto';
-import { keyRateLimiter, getClientIdentifier } from '@/lib/rateLimit';
 
 export const runtime = 'edge';
 
@@ -24,20 +23,6 @@ export async function GET(request: NextRequest) {
         );
     }
 
-    // Rate limiting
-    const clientId = getClientIdentifier(request);
-    const rateLimit = await keyRateLimiter.check(clientId);
-
-    if (!rateLimit.success) {
-        return NextResponse.json(
-            { error: 'Too many requests' },
-            {
-                status: 429,
-                headers: { 'Retry-After': String(rateLimit.retryAfter || 60) }
-            }
-        );
-    }
-
     const cookieStore = await cookies();
     const hasKey = cookieStore.has(COOKIE_NAME);
     return NextResponse.json({ hasKey });
@@ -49,20 +34,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
             { error: 'Invalid request' },
             { status: 403 }
-        );
-    }
-
-    // Rate limiting
-    const clientId = getClientIdentifier(request);
-    const rateLimit = await keyRateLimiter.check(clientId);
-
-    if (!rateLimit.success) {
-        return NextResponse.json(
-            { error: 'Too many requests' },
-            {
-                status: 429,
-                headers: { 'Retry-After': String(rateLimit.retryAfter || 60) }
-            }
         );
     }
 
@@ -105,20 +76,6 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json(
             { error: 'Invalid request' },
             { status: 403 }
-        );
-    }
-
-    // Rate limiting
-    const clientId = getClientIdentifier(request);
-    const rateLimit = await keyRateLimiter.check(clientId);
-
-    if (!rateLimit.success) {
-        return NextResponse.json(
-            { error: 'Too many requests' },
-            {
-                status: 429,
-                headers: { 'Retry-After': String(rateLimit.retryAfter || 60) }
-            }
         );
     }
 

@@ -1,6 +1,6 @@
 // Input validation utilities
 
-import { MAX_PROMPT_LENGTH, MIN_PROMPT_LENGTH, MAX_MODELS, MIN_API_KEY_LENGTH } from './constants';
+import { MIN_PROMPT_LENGTH, MIN_API_KEY_LENGTH } from './constants';
 
 export interface ValidationResult {
     isValid: boolean;
@@ -16,21 +16,13 @@ export function validatePrompt(prompt: string): ValidationResult {
 
     const trimmed = prompt.trim();
 
-    // Check length
+    // Check minimum length only - let models handle max context limits
     if (trimmed.length < MIN_PROMPT_LENGTH) {
         return { isValid: false, error: 'Prompt cannot be empty' };
     }
 
-    if (trimmed.length > MAX_PROMPT_LENGTH) {
-        return {
-            isValid: false,
-            error: `Prompt exceeds maximum length of ${MAX_PROMPT_LENGTH} characters`
-        };
-    }
-
-    // We allow all content since we use safe rendering (React + react-markdown)
-    // and preventing code snippets would hinder the tool's purpose.
-    // Length checks are sufficient for basic DOS protection.
+    // No artificial max length - models will return errors if prompt exceeds their context
+    // This allows users to fully utilize large context models like Claude (200k) or Gemini (1M+)
 
     return { isValid: true, sanitized: trimmed };
 }
@@ -59,9 +51,8 @@ export function validateModels(models: string[]): ValidationResult {
         return { isValid: false, error: 'At least one model must be selected' };
     }
 
-    if (models.length > MAX_MODELS) {
-        return { isValid: false, error: `Maximum of ${MAX_MODELS} models can be selected` };
-    }
+    // No artificial max model limit - user is paying for each query, let them choose
+    // OpenRouter will handle any actual limits
 
     // Validate model ID format (provider/model-name)
     const modelPattern = /^[\w-]+\/[\w.-]+(?::[\w]+)?$/;

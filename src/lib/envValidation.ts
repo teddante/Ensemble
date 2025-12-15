@@ -21,13 +21,8 @@ export function validateEnvironment(): void {
         errors.push('COOKIE_ENCRYPTION_KEY must be at least 32 characters');
     }
 
-    // Upstash Redis credentials (Required for Vercel/Edge rate limiting)
-    if (!process.env.UPSTASH_REDIS_REST_URL) {
-        errors.push('UPSTASH_REDIS_REST_URL is required for rate limiting and session locks');
-    }
-    if (!process.env.UPSTASH_REDIS_REST_TOKEN) {
-        errors.push('UPSTASH_REDIS_REST_TOKEN is required for rate limiting and session locks');
-    }
+    // Note: Upstash Redis is no longer required - rate limiting and session locks removed
+    // OpenRouter handles rate limiting based on user's API key
 
     // Log warnings for optional but recommended variables
     if (!process.env.OPENROUTER_API_KEY) {
