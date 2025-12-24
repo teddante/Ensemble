@@ -67,6 +67,7 @@ export interface GenerationRequest {
     apiKey: string;
     refinementModel?: string;
     systemPrompt?: string;
+    sessionId?: string;
 }
 
 export interface StreamEvent {

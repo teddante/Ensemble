@@ -7,6 +7,8 @@ import { getApiKeyFromCookie } from '@/app/api/key/route';
 import { MAX_REQUEST_BODY_SIZE, REQUEST_TIMEOUT_MS } from '@/lib/constants';
 import { logger, generateRequestId } from '@/lib/logger';
 import { handleOpenRouterError } from '@/lib/errors';
+import { checkRateLimit } from '@/lib/rateLimit';
+import { acquireLock, releaseLock } from '@/lib/sessionLock';
 
 export const runtime = 'edge';
 
@@ -113,7 +115,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         }
 
         const body = await request.json();
-        const { prompt, models, refinementModel, reasoning: globalReasoning, modelConfigs, maxSynthesisChars, contextWarningThreshold } = body;
+        const { prompt, models, refinementModel, reasoning: globalReasoning, modelConfigs, maxSynthesisChars, contextWarningThreshold, sessionId } = body;
         let { messages, systemPrompt } = body;
 
         // Inject Current Date and Time
@@ -167,6 +169,30 @@ export async function POST(request: NextRequest): Promise<Response> {
         const modelsValidation = validateModels(models);
         if (!modelsValidation.isValid) {
             return Response.json({ error: modelsValidation.error }, { status: 400 });
+        }
+
+        // 3. Rate Limiting (by API Key)
+        // We use the apiKey as the identifier since it's unique per user (usually)
+        // If we wanted to limit by IP, we'd need to trust headers or use a different method
+        const rateLimitResult = await checkRateLimit(apiKeyValidation.sanitized!);
+        if (!rateLimitResult.success) {
+            logger.warn('Rate limit exceeded', { requestId, apiKey: apiKeyValidation.sanitized!.substring(0, 10) + '...' });
+            return Response.json(
+                { error: 'Rate limit exceeded. Please try again later.' },
+                { status: 429, headers: { 'Retry-After': String(Math.ceil((rateLimitResult.reset - Date.now()) / 1000)) } }
+            );
+        }
+
+        // 4. Session Locking
+        if (sessionId) {
+            const locked = await acquireLock(sessionId);
+            if (!locked) {
+                logger.warn('Session locked', { requestId, sessionId });
+                return Response.json(
+                    { error: 'A request is already in progress for this session. Please wait for it to complete.' },
+                    { status: 409 }
+                );
+            }
         }
 
         // Get referer from request or use default
@@ -331,15 +357,31 @@ export async function POST(request: NextRequest): Promise<Response> {
                     }
 
                     sendEvent(controller, { type: 'complete' });
+
+                    // Release session lock on success
+                    if (sessionId) {
+                        await releaseLock(sessionId);
+                    }
+
                     controller.close();
                 } catch (error) {
                     const errorMessage = handleOpenRouterError(error);
                     sendEvent(controller, { type: 'error', error: errorMessage });
+
+                    // Release session lock on error
+                    if (sessionId) {
+                        await releaseLock(sessionId);
+                    }
+
                     controller.close();
                 }
             },
-            cancel() {
+            async cancel() {
                 abortController.abort();
+                // Release session lock on cancel
+                if (sessionId) {
+                    await releaseLock(sessionId);
+                }
             },
         });
 

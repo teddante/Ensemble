@@ -389,6 +389,7 @@ export default function Home() {
           maxSynthesisChars: settings.maxSynthesisChars,
           contextWarningThreshold: settings.contextWarningThreshold,
           systemPrompt: settings.systemPrompt,
+          sessionId: currentSessionIdRef.current,
         }),
         signal: abortControllerRef.current.signal,
         credentials: 'include',

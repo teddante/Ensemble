@@ -21,8 +21,10 @@ export function validateEnvironment(): void {
         errors.push('COOKIE_ENCRYPTION_KEY must be at least 32 characters');
     }
 
-    // Note: Upstash Redis is no longer required - rate limiting and session locks removed
-    // OpenRouter handles rate limiting based on user's API key
+    // Upstash Redis is optional but recommended for Rate Limiting and Session Locking
+    if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+        console.warn('[Ensemble] Upstash Redis not configured - Rate Limiting and Session Locking will be disabled');
+    }
 
     // Log warnings for optional but recommended variables
     if (!process.env.OPENROUTER_API_KEY) {
