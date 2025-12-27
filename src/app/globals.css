@@ -22,9 +22,9 @@
   --color-bg-tertiary: #1a1a25;
   --color-bg-elevated: #222230;
 
-  --color-surface: rgba(30, 30, 45, 0.6);
-  --color-surface-hover: rgba(40, 40, 60, 0.7);
-  --color-surface-active: rgba(50, 50, 75, 0.8);
+  --color-surface: rgba(30, 30, 45, 0.85);
+  --color-surface-hover: rgba(40, 40, 60, 0.9);
+  --color-surface-active: rgba(50, 50, 75, 0.92);
 
   --color-border: rgba(255, 255, 255, 0.08);
   --color-border-subtle: rgba(255, 255, 255, 0.04);
@@ -45,7 +45,7 @@
 
   /* Gradients */
   --gradient-primary: linear-gradient(135deg, #8b5cf6 0%, #6366f1 50%, #3b82f6 100%);
-  --gradient-surface: linear-gradient(180deg, rgba(30, 30, 45, 0.8) 0%, rgba(20, 20, 30, 0.9) 100%);
+  --gradient-surface: linear-gradient(180deg, rgba(30, 30, 45, 0.92) 0%, rgba(20, 20, 30, 0.95) 100%);
   --gradient-glow: radial-gradient(ellipse at 50% 0%, rgba(139, 92, 246, 0.15) 0%, transparent 60%);
 
   /* Shadows */

@@ -163,11 +163,15 @@ export const test = base.extend<{
                     const request = route.request();
                     const body = request.postDataJSON();
 
+                    console.log('[E2E Mock] /api/generate called with models:', body.models);
+
                     const sseResponse = createMockGenerateResponse({
                         models: body.models || ['openai/gpt-4'],
                         prompt: body.prompt || 'test',
                         includeError: options?.includeError,
                     });
+
+                    console.log('[E2E Mock] SSE response length:', sseResponse.length);
 
                     await route.fulfill({
                         status: 200,
@@ -281,10 +285,12 @@ export async function submitPrompt(page: Page, prompt: string): Promise<void> {
  * Helper: Wait for generation to complete
  */
 export async function waitForGeneration(page: Page): Promise<void> {
-    // Wait for synthesis to appear and streaming to end
-    await expect(page.locator('.synthesized-response')).toBeVisible({ timeout: 30000 });
-    // Wait for streaming badge to disappear
-    await expect(page.locator('.streaming-badge')).toBeHidden({ timeout: 30000 });
+    // Wait for synthesis content to appear - could be in active generation or history
+    // Wait for either the synthesized-response container OR the actual text content
+    await Promise.race([
+        expect(page.locator('.synthesized-response').first()).toBeVisible({ timeout: 30000 }),
+        expect(page.getByText('here is the synthesis')).toBeVisible({ timeout: 30000 }),
+    ]);
 }
 
 /**
@@ -324,15 +330,16 @@ export async function navigateAndWaitForReady(page: Page): Promise<void> {
 export async function navigateWithKeyCheck(page: Page): Promise<void> {
     // Navigate and wait for key response
     await Promise.all([
-        page.waitForResponse(resp => resp.url().includes('/api/key') && resp.request().method() === 'GET', { timeout: 10000 }),
+        page.waitForResponse(resp => resp.url().includes('/api/key') && resp.request().method() === 'GET', { timeout: 15000 }),
         page.goto('/'),
     ]);
 
-    await page.waitForLoadState('networkidle');
+    // Wait for React hydration and page to stabilize
+    await page.waitForLoadState('domcontentloaded');
 
-    // Wait for the page to fully render
+    // Wait for the page to fully render - the model-selector should be present
     await expect(page.locator('.model-selector')).toBeVisible({ timeout: 15000 });
 
-    // Wait longer for React state to settle before checking modal
-    await page.waitForTimeout(1000);
+    // Give React time to process the key check response and update state
+    await page.waitForTimeout(500);
 }

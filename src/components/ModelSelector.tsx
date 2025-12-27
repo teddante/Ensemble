@@ -136,7 +136,7 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
                         <p className="no-selection-message">No models selected</p>
                     ) : (
                         selectedModelObjects.map((model) => (
-                            <div key={model.id} className="selected-model-tag">
+                            <div key={model.id} className="selected-model-tag model-chip">
                                 <span className="selected-model-name">{model.name}</span>
                                 <span className="selected-model-provider">{model.provider}</span>
                                 {isFreeModel(model) && <span className="free-badge">FREE</span>}
