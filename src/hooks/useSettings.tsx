@@ -1,8 +1,11 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Settings, DEFAULT_SELECTED_MODELS, DEFAULT_REFINEMENT_MODEL, ModelConfig } from '@/types';
-import { API_KEY_MASK, MAX_SYNTHESIS_CHARS } from '@/lib/constants';
+import { Settings, ModelConfig } from '@/types';
+import { API_KEY_MASK } from '@/lib/constants';
+import { createDefaultSettings } from '@/lib/settingsDefaults';
+import { getErrorMessage, apiFetch } from '@/lib/apiClient';
+import { getLocalStorageJSON, setLocalStorageJSON } from '@/lib/storage';
 
 interface SettingsContextType {
     settings: Settings;
@@ -20,83 +23,54 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 
 const STORAGE_KEY = 'ensemble-settings';
 
-// Simplified loadSettings to only handle non-sensitive data
-function loadSettings(): Omit<Settings, 'apiKey'> & { apiKey: string } {
-    if (typeof window === 'undefined') {
-        return {
-            apiKey: '',
-            selectedModels: DEFAULT_SELECTED_MODELS,
-            modelConfigs: {},
+type PersistedSettings = Omit<Settings, 'apiKey'>;
 
-            refinementModel: DEFAULT_REFINEMENT_MODEL,
-            maxSynthesisChars: MAX_SYNTHESIS_CHARS,
-            contextWarningThreshold: 0.8,
-            systemPrompt: '',
-        };
-    }
+function toPersistedSettings(settings: Settings): PersistedSettings {
+    return {
+        selectedModels: settings.selectedModels,
+        modelConfigs: settings.modelConfigs,
+        refinementModel: settings.refinementModel,
+        maxSynthesisChars: settings.maxSynthesisChars,
+        contextWarningThreshold: settings.contextWarningThreshold,
+        systemPrompt: settings.systemPrompt,
+    };
+}
 
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-            const parsed = JSON.parse(stored);
-            return {
-                apiKey: '', // Never load key from local storage anymore
-                selectedModels: parsed.selectedModels || DEFAULT_SELECTED_MODELS,
-                modelConfigs: parsed.modelConfigs || {},
+function loadPersistedSettings(): PersistedSettings {
+    const defaults = createDefaultSettings();
+    const parsed = getLocalStorageJSON<Partial<PersistedSettings> | null>(STORAGE_KEY, null);
 
-                refinementModel: parsed.refinementModel || DEFAULT_REFINEMENT_MODEL,
-                maxSynthesisChars: parsed.maxSynthesisChars || MAX_SYNTHESIS_CHARS,
-                contextWarningThreshold: parsed.contextWarningThreshold || 0.8,
-                systemPrompt: parsed.systemPrompt || '',
-            };
-        }
-    } catch (error) {
-        console.error('Failed to load settings:', error);
+    if (!parsed) {
+        return toPersistedSettings(defaults);
     }
 
     return {
-        apiKey: '',
-        selectedModels: DEFAULT_SELECTED_MODELS,
-        modelConfigs: {},
+        selectedModels: parsed.selectedModels ?? defaults.selectedModels,
+        modelConfigs: parsed.modelConfigs ?? defaults.modelConfigs,
+        refinementModel: parsed.refinementModel ?? defaults.refinementModel,
+        maxSynthesisChars: parsed.maxSynthesisChars ?? defaults.maxSynthesisChars,
+        contextWarningThreshold: parsed.contextWarningThreshold ?? defaults.contextWarningThreshold,
+        systemPrompt: parsed.systemPrompt ?? defaults.systemPrompt,
+    };
+}
 
-        refinementModel: DEFAULT_REFINEMENT_MODEL,
-        maxSynthesisChars: MAX_SYNTHESIS_CHARS,
-        contextWarningThreshold: 0.8,
-        systemPrompt: '',
+function loadSettings(): Settings {
+    const defaults = createDefaultSettings();
+    return {
+        ...defaults,
+        ...loadPersistedSettings(),
+        apiKey: '',
     };
 }
 
 function saveSettings(settings: Settings): void {
-    if (typeof window === 'undefined') return;
-
-    try {
-        // Don't save apiKey to localStorage
-        const safeSettings = {
-            selectedModels: settings.selectedModels,
-            modelConfigs: settings.modelConfigs,
-
-            refinementModel: settings.refinementModel,
-            maxSynthesisChars: settings.maxSynthesisChars,
-            contextWarningThreshold: settings.contextWarningThreshold,
-            systemPrompt: settings.systemPrompt,
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(safeSettings));
-    } catch (error) {
-        console.error('Failed to save settings:', error);
+    if (!setLocalStorageJSON(STORAGE_KEY, toPersistedSettings(settings))) {
+        console.error('Failed to save settings');
     }
 }
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-    const [settings, setSettings] = useState<Settings>({
-        apiKey: '',
-        selectedModels: DEFAULT_SELECTED_MODELS,
-        modelConfigs: {},
-
-        refinementModel: DEFAULT_REFINEMENT_MODEL,
-        maxSynthesisChars: MAX_SYNTHESIS_CHARS,
-        contextWarningThreshold: 0.8,
-        systemPrompt: '',
-    });
+    const [settings, setSettings] = useState<Settings>(createDefaultSettings);
     const [hasApiKey, setHasApiKey] = useState(false);
     const [isCheckingKey, setIsCheckingKey] = useState(true);
     const [isHydrated, setIsHydrated] = useState(false);
@@ -105,10 +79,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const checkServerKey = async () => {
         setIsCheckingKey(true);
         try {
-            const res = await fetch('/api/key', {
-                credentials: 'include',
-                headers: { 'X-Requested-With': 'fetch' },
-            });
+            const res = await apiFetch('/api/key');
             if (res.ok) {
                 const data = await res.json();
                 setHasApiKey(data.hasKey);
@@ -141,18 +112,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         if (!key) {
             // Delete key
             try {
-                const res = await fetch('/api/key', {
+                const res = await apiFetch('/api/key', {
                     method: 'DELETE',
-                    headers: { 'X-Requested-With': 'fetch' },
-                    credentials: 'include',
                 });
                 if (res.ok) {
                     setHasApiKey(false);
                     setSettings(prev => ({ ...prev, apiKey: '' }));
                     return { success: true };
                 } else {
-                    const data = await res.json();
-                    return { success: false, error: data.error || 'Failed to delete key' };
+                    return { success: false, error: await getErrorMessage(res, 'Failed to delete key') };
                 }
             } catch {
                 return { success: false, error: 'Network error' };
@@ -161,14 +129,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
         // Save key to server
         try {
-            const res = await fetch('/api/key', {
+            const res = await apiFetch('/api/key', {
                 method: 'POST',
                 body: JSON.stringify({ apiKey: key }),
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Requested-With': 'fetch',
                 },
-                credentials: 'include',
             });
 
             if (res.ok) {
@@ -176,8 +142,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 setSettings(prev => ({ ...prev, apiKey: API_KEY_MASK }));
                 return { success: true };
             } else {
-                const data = await res.json();
-                return { success: false, error: data.error || 'Failed to save key' };
+                return { success: false, error: await getErrorMessage(res, 'Failed to save key') };
             }
         } catch (error) {
             console.error('Failed to set key:', error);

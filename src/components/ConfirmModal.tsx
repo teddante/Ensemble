@@ -2,6 +2,7 @@
 
 import { AlertTriangle } from 'lucide-react';
 import { useEffect, useRef } from 'react';
+import { useBackdropDismiss, useEscapeDismiss } from '@/hooks/useModalDismiss';
 
 interface ConfirmModalProps {
     isOpen: boolean;
@@ -33,25 +34,11 @@ export function ConfirmModal({
         }
     }, [isOpen]);
 
-    // Handle escape key
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && isOpen) {
-                onCancel();
-            }
-        };
-
-        document.addEventListener('keydown', handleKeyDown);
-        return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, onCancel]);
+    useEscapeDismiss({ enabled: isOpen, onDismiss: onCancel, target: 'document' });
 
     if (!isOpen) return null;
 
-    const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (e.target === e.currentTarget) {
-            onCancel();
-        }
-    };
+    const handleOverlayClick = useBackdropDismiss<HTMLDivElement>(onCancel);
 
     const getVariantColor = () => {
         switch (variant) {

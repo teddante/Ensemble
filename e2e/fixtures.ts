@@ -135,6 +135,7 @@ export const test = base.extend<{
     mockApi: {
         mockModels: () => Promise<void>;
         mockGenerate: (options?: { includeError?: string }) => Promise<void>;
+        mockApiKey: (options: { hasKey: boolean; allowDelete?: boolean }) => Promise<void>;
         mockApiKeyExists: () => Promise<void>;
         mockApiKeyNotExists: () => Promise<void>;
         setupAllMocks: () => Promise<void>;
@@ -186,9 +187,9 @@ export const test = base.extend<{
             },
 
             /**
-             * Mock API key exists (user is authenticated)
+             * Mock /api/key endpoint with configurable key state
              */
-            async mockApiKeyExists() {
+            async mockApiKey({ hasKey, allowDelete = false }: { hasKey: boolean; allowDelete?: boolean }) {
                 await page.route('**/api/key', async (route: Route) => {
                     const method = route.request().method();
 
@@ -196,7 +197,7 @@ export const test = base.extend<{
                         await route.fulfill({
                             status: 200,
                             contentType: 'application/json',
-                            body: JSON.stringify({ hasKey: true }),
+                            body: JSON.stringify({ hasKey }),
                         });
                     } else if (method === 'POST') {
                         await route.fulfill({
@@ -204,7 +205,7 @@ export const test = base.extend<{
                             contentType: 'application/json',
                             body: JSON.stringify({ success: true }),
                         });
-                    } else if (method === 'DELETE') {
+                    } else if (method === 'DELETE' && allowDelete) {
                         await route.fulfill({
                             status: 200,
                             contentType: 'application/json',
@@ -217,28 +218,17 @@ export const test = base.extend<{
             },
 
             /**
+             * Mock API key exists (user is authenticated)
+             */
+            async mockApiKeyExists() {
+                await mockApi.mockApiKey({ hasKey: true, allowDelete: true });
+            },
+
+            /**
              * Mock API key does not exist (show settings modal)
              */
             async mockApiKeyNotExists() {
-                await page.route('**/api/key', async (route: Route) => {
-                    const method = route.request().method();
-
-                    if (method === 'GET') {
-                        await route.fulfill({
-                            status: 200,
-                            contentType: 'application/json',
-                            body: JSON.stringify({ hasKey: false }),
-                        });
-                    } else if (method === 'POST') {
-                        await route.fulfill({
-                            status: 200,
-                            contentType: 'application/json',
-                            body: JSON.stringify({ success: true }),
-                        });
-                    } else {
-                        await route.continue();
-                    }
-                });
+                await mockApi.mockApiKey({ hasKey: false });
             },
 
             /**

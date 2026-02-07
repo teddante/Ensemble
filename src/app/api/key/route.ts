@@ -2,25 +2,16 @@ import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateApiKey } from '@/lib/validation';
 import { encrypt, decrypt, isEncrypted } from '@/lib/crypto';
+import { invalidRequestResponse, validateCSRF } from '@/lib/apiSecurity';
 
 export const runtime = 'edge';
 
 const COOKIE_NAME = 'ensemble_api_key';
-const CSRF_HEADER = 'x-requested-with';
-
-// CSRF protection: require custom header for state-changing requests
-function validateCSRF(request: NextRequest): boolean {
-    const header = request.headers.get(CSRF_HEADER);
-    return header === 'XMLHttpRequest' || header === 'fetch';
-}
 
 export async function GET(request: NextRequest) {
     // CSRF protection for consistency
     if (!validateCSRF(request)) {
-        return NextResponse.json(
-            { error: 'Invalid request' },
-            { status: 403 }
-        );
+        return invalidRequestResponse();
     }
 
     const cookieStore = await cookies();
@@ -31,10 +22,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     // CSRF protection
     if (!validateCSRF(request)) {
-        return NextResponse.json(
-            { error: 'Invalid request' },
-            { status: 403 }
-        );
+        return invalidRequestResponse();
     }
 
     try {
@@ -73,10 +61,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
     // CSRF protection
     if (!validateCSRF(request)) {
-        return NextResponse.json(
-            { error: 'Invalid request' },
-            { status: 403 }
-        );
+        return invalidRequestResponse();
     }
 
     const cookieStore = await cookies();

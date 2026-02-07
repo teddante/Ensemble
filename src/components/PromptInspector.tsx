@@ -1,6 +1,7 @@
 import React from 'react';
 import { Message } from '@/types';
 import { X, Copy, Check, Download } from 'lucide-react';
+import { useBackdropDismiss, useEscapeDismiss } from '@/hooks/useModalDismiss';
 
 interface PromptInspectorProps {
     isOpen: boolean;
@@ -14,20 +15,7 @@ export function PromptInspector({ isOpen, onClose, messages, modelId }: PromptIn
     const [copiedAll, setCopiedAll] = React.useState(false);
     const modalRef = React.useRef<HTMLDivElement>(null);
 
-    // Handle Escape key
-    React.useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-                onClose();
-            }
-        };
-
-        if (isOpen) {
-            window.addEventListener('keydown', handleKeyDown);
-        }
-
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, onClose]);
+    useEscapeDismiss({ enabled: isOpen, onDismiss: onClose });
 
     // Focus modal on open
     React.useEffect(() => {
@@ -73,12 +61,7 @@ export function PromptInspector({ isOpen, onClose, messages, modelId }: PromptIn
         }
     };
 
-    // Handle backdrop click
-    const handleBackdropClick = (e: React.MouseEvent) => {
-        if (e.target === e.currentTarget) {
-            onClose();
-        }
-    };
+    const handleBackdropClick = useBackdropDismiss<HTMLDivElement>(onClose);
 
     return (
         <div

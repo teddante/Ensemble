@@ -5,6 +5,7 @@ import { X, Eye, EyeOff, ExternalLink, Loader2 } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
 import { Model } from '@/types';
 import { API_KEY_MASK } from '@/lib/constants';
+import { useBackdropDismiss } from '@/hooks/useModalDismiss';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -76,11 +77,7 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
         }
     };
 
-    const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (e.target === e.currentTarget && !isSaving) {
-            onClose();
-        }
-    };
+    const handleOverlayClick = useBackdropDismiss<HTMLDivElement>(onClose, isSaving);
 
     return (
         <div className="modal-overlay" onClick={handleOverlayClick}>

@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Model, FALLBACK_MODELS, validateSelectedModels } from '@/types';
 import { MODELS_CACHE_TTL, MAX_RETRIES, INITIAL_RETRY_DELAY_MS } from '@/lib/constants';
+import { getLocalStorageJSON, removeLocalStorageItem, setLocalStorageJSON } from '@/lib/storage';
+import { apiFetch } from '@/lib/apiClient';
 
 const CACHE_KEY = 'ensemble_models_cache';
 const VALIDATED_FALLBACK_KEY = 'ensemble_validated_fallback';
@@ -26,53 +28,42 @@ interface ValidatedFallback {
 }
 
 function getCachedModels(): CachedModels | null {
-    if (typeof window === 'undefined') return null;
+    const parsed = getLocalStorageJSON<CachedModels | null>(CACHE_KEY, null);
+    if (parsed) {
+        // Check version - invalidate old caches
+        if (parsed.version !== CACHE_VERSION) {
+            if (process.env.NODE_ENV === 'development') {
+                console.log('[useModels] Cache version mismatch, invalidating. Expected:', CACHE_VERSION, 'Got:', parsed.version);
+            }
+            removeLocalStorageItem(CACHE_KEY);
+            return null;
+        }
 
-    try {
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (cached) {
-            const parsed: CachedModels = JSON.parse(cached);
-
-            // Check version - invalidate old caches
-            if (parsed.version !== CACHE_VERSION) {
+        // Check TTL
+        if (Date.now() - parsed.timestamp < MODELS_CACHE_TTL) {
+            // Validate that models have expected fields (spot check first model)
+            if (parsed.models.length > 0 && parsed.models[0].supported_parameters === undefined) {
                 if (process.env.NODE_ENV === 'development') {
-                    console.log('[useModels] Cache version mismatch, invalidating. Expected:', CACHE_VERSION, 'Got:', parsed.version);
+                    console.log('[useModels] Cache missing supported_parameters, invalidating');
                 }
-                localStorage.removeItem(CACHE_KEY);
+                removeLocalStorageItem(CACHE_KEY);
                 return null;
             }
-
-            // Check TTL
-            if (Date.now() - parsed.timestamp < MODELS_CACHE_TTL) {
-                // Validate that models have expected fields (spot check first model)
-                if (parsed.models.length > 0 && parsed.models[0].supported_parameters === undefined) {
-                    if (process.env.NODE_ENV === 'development') {
-                        console.log('[useModels] Cache missing supported_parameters, invalidating');
-                    }
-                    localStorage.removeItem(CACHE_KEY);
-                    return null;
-                }
-                return parsed;
-            }
+            return parsed;
         }
-    } catch (error) {
-        console.error('Failed to read models cache:', error);
     }
     return null;
 }
 
 function setCachedModels(models: Model[]): void {
-    if (typeof window === 'undefined') return;
+    const cache: CachedModels = {
+        models,
+        timestamp: Date.now(),
+        version: CACHE_VERSION,
+    };
 
-    try {
-        const cache: CachedModels = {
-            models,
-            timestamp: Date.now(),
-            version: CACHE_VERSION,
-        };
-        localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-    } catch (error) {
-        console.error('Failed to cache models:', error);
+    if (!setLocalStorageJSON(CACHE_KEY, cache)) {
+        console.error('Failed to cache models');
     }
 }
 
@@ -80,19 +71,9 @@ function setCachedModels(models: Model[]): void {
  * Get previously validated fallback model IDs from localStorage
  */
 function getValidatedFallback(): ValidatedFallback | null {
-    if (typeof window === 'undefined') return null;
-
-    try {
-        const cached = localStorage.getItem(VALIDATED_FALLBACK_KEY);
-        if (cached) {
-            const parsed: ValidatedFallback = JSON.parse(cached);
-            // Return if still valid (same TTL as models cache)
-            if (Date.now() - parsed.timestamp < MODELS_CACHE_TTL) {
-                return parsed;
-            }
-        }
-    } catch (error) {
-        console.error('Failed to read validated fallback cache:', error);
+    const parsed = getLocalStorageJSON<ValidatedFallback | null>(VALIDATED_FALLBACK_KEY, null);
+    if (parsed && Date.now() - parsed.timestamp < MODELS_CACHE_TTL) {
+        return parsed;
     }
     return null;
 }
@@ -101,17 +82,14 @@ function getValidatedFallback(): ValidatedFallback | null {
  * Store validated fallback model IDs in localStorage
  */
 function setValidatedFallback(validModelIds: string[], invalidModelIds: string[]): void {
-    if (typeof window === 'undefined') return;
+    const cache: ValidatedFallback = {
+        validModelIds,
+        invalidModelIds,
+        timestamp: Date.now(),
+    };
 
-    try {
-        const cache: ValidatedFallback = {
-            validModelIds,
-            invalidModelIds,
-            timestamp: Date.now(),
-        };
-        localStorage.setItem(VALIDATED_FALLBACK_KEY, JSON.stringify(cache));
-    } catch (error) {
-        console.error('Failed to cache validated fallback:', error);
+    if (!setLocalStorageJSON(VALIDATED_FALLBACK_KEY, cache)) {
+        console.error('Failed to cache validated fallback');
     }
 }
 
@@ -230,9 +208,7 @@ export function useModels() {
 
         for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
             try {
-                const response = await fetch('/api/models', {
-                    headers: { 'X-Requested-With': 'fetch' }
-                });
+                const response = await apiFetch('/api/models');
                 if (!response.ok) throw new Error('Failed to fetch models');
 
                 const data = await response.json();

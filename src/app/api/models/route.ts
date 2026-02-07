@@ -1,26 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OpenRouter } from '@openrouter/sdk';
 import { handleOpenRouterError } from '@/lib/errors';
+import { invalidRequestResponse, validateCSRF } from '@/lib/apiSecurity';
 
 export const runtime = 'edge';
-
-const CSRF_HEADER = 'x-requested-with';
-
-// CSRF protection: require custom header
-function validateCSRF(request: NextRequest): boolean {
-    const header = request.headers.get(CSRF_HEADER);
-    return header === 'XMLHttpRequest' || header === 'fetch';
-}
-
-
 
 export async function GET(request: NextRequest) {
     // CSRF protection
     if (!validateCSRF(request)) {
-        return NextResponse.json(
-            { error: 'Invalid request' },
-            { status: 403 }
-        );
+        return invalidRequestResponse();
     }
 
     try {

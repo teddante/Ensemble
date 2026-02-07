@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { ModelResponse, Message } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
+import { getLocalStorageJSON, removeLocalStorageItem } from '@/lib/storage';
 
 export interface HistoryItem {
     id: string;
@@ -24,21 +25,14 @@ const STORAGE_KEY = 'ensemble_history';
 
 export function useHistory() {
     const [history, setHistory] = useState<HistoryItem[]>(() => {
-        if (typeof window !== 'undefined') {
-            try {
-                const stored = localStorage.getItem(STORAGE_KEY);
-                if (stored) {
-                    return JSON.parse(stored);
-                }
-            } catch (error) {
-                console.error('Failed to load history:', error);
-            }
-        }
-        return [];
+        return getLocalStorageJSON<HistoryItem[]>(STORAGE_KEY, []);
     });
     const [storageWarning, setStorageWarning] = useState<string | null>(null);
 
-
+    const showStorageWarning = useCallback((message: string) => {
+        setStorageWarning(message);
+        setTimeout(() => setStorageWarning(null), 5000);
+    }, []);
 
     // Check localStorage usage percentage
     const checkStorageUsage = useCallback((): number => {
@@ -65,8 +59,7 @@ export function useHistory() {
         // Proactive check: warn if approaching quota (80% threshold)
         const usage = checkStorageUsage();
         if (usage > 0.8 && usage < 1) {
-            setStorageWarning(`Storage ${Math.round(usage * 100)}% full - older history items may be removed`);
-            setTimeout(() => setStorageWarning(null), 5000);
+            showStorageWarning(`Storage ${Math.round(usage * 100)}% full - older history items may be removed`);
         }
 
         // Try to save with progressive eviction
@@ -75,9 +68,7 @@ export function useHistory() {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(itemsToSave));
 
                 if (evictedCount > 0) {
-                    setStorageWarning(`Removed ${evictedCount} oldest items due to storage limits`);
-                    // Clear warning after 5 seconds
-                    setTimeout(() => setStorageWarning(null), 5000);
+                    showStorageWarning(`Removed ${evictedCount} oldest items due to storage limits`);
                 }
                 return itemsToSave;
             } catch (error) {
@@ -94,10 +85,10 @@ export function useHistory() {
 
         // If we get here, we couldn't save anything
         console.error('Failed to save history: storage quota exhausted');
-        localStorage.removeItem(STORAGE_KEY);
+        removeLocalStorageItem(STORAGE_KEY);
         setStorageWarning('History cleared due to storage limits');
         return [];
-    }, [checkStorageUsage]);
+    }, [checkStorageUsage, showStorageWarning]);
 
     // Debounced save using ref to batch rapid updates (fixes race condition)
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -129,7 +120,7 @@ export function useHistory() {
     useEffect(() => {
         if (history.length > 0) { // Only save if we have items (or you might want to save empty array if cleared context, see below)
             debouncedSave(history);
-        } else if (history.length === 0 && localStorage.getItem(STORAGE_KEY)) {
+        } else if (history.length === 0 && getLocalStorageJSON<HistoryItem[] | null>(STORAGE_KEY, null)) {
             // Handle clear history case
             debouncedSave([]);
         }
@@ -178,7 +169,7 @@ export function useHistory() {
     const clearHistory = useCallback(() => {
         setHistory([]);
         setStorageWarning(null);
-        localStorage.removeItem(STORAGE_KEY);
+        removeLocalStorageItem(STORAGE_KEY);
     }, []);
 
     return {

@@ -14,6 +14,7 @@ import { PromptInspector } from '@/components/PromptInspector';
 import { useModels } from '@/hooks/useModels';
 import { useSettings } from '@/hooks/useSettings';
 import { ModelResponse, StreamEvent, Message } from '@/types';
+import { apiFetch, getErrorMessage } from '@/lib/apiClient';
 
 import { useHistory, HistoryItem } from '@/hooks/useHistory';
 import { HistorySidebar } from '@/components/HistorySidebar';
@@ -78,6 +79,20 @@ export default function Home() {
     item.sessionId === currentSessionId
   );
 
+  const resetActiveGenerationState = useCallback(() => {
+    setPrompt('');
+    setResponses([]);
+    setSynthesizedContent('');
+    setSynthesisPromptData(undefined);
+    generationStateRef.current = { responses: [], synthesizedContent: '' };
+  }, []);
+
+  const abortActiveGeneration = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  }, []);
 
   const handleStreamEvent = useCallback((event: StreamEvent, originalPrompt: string) => {
     // Helper to update both ref and state
@@ -209,13 +224,10 @@ export default function Home() {
         );
 
         // Clear transient state so it moves to chat history
-        setPrompt('');
-        setResponses([]);
-        setSynthesizedContent('');
-        generationStateRef.current = { responses: [], synthesizedContent: '' };
+        resetActiveGenerationState();
         break;
     }
-  }, [addToHistory, settings, currentSessionId]);
+  }, [addToHistory, settings, currentSessionId, resetActiveGenerationState]);
 
   // Show settings modal on first load if no API key
   useEffect(() => {
@@ -374,11 +386,10 @@ export default function Home() {
     messages.push({ role: 'user', content: newPrompt });
 
     try {
-      const response = await fetch('/api/generate', {
+      const response = await apiFetch('/api/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Requested-With': 'fetch',
         },
         body: JSON.stringify({
           prompt: newPrompt,
@@ -392,12 +403,10 @@ export default function Home() {
           sessionId: currentSessionIdRef.current,
         }),
         signal: abortControllerRef.current.signal,
-        credentials: 'include',
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate response');
+        throw new Error(await getErrorMessage(response, 'Failed to generate response'));
       }
 
       const reader = response.body?.getReader();
@@ -450,11 +459,8 @@ export default function Home() {
   }, [hasApiKey, settings.selectedModels, settings.refinementModel, settings.modelConfigs, handleStreamEvent, models, settings.contextWarningThreshold, settings.maxSynthesisChars, settings.systemPrompt]);
 
   const handleCancel = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-  }, []);
+    abortActiveGeneration();
+  }, [abortActiveGeneration]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -487,21 +493,14 @@ export default function Home() {
 
   const handleNewChat = useCallback(() => {
     // Abort active generation if any
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
+    abortActiveGeneration();
     // Start new session
     setCurrentSessionId(uuidv4());
 
     // Clear active state
-    setPrompt('');
-    setResponses([]);
-    setSynthesizedContent('');
-    setSynthesisPromptData(undefined);
-    generationStateRef.current = { responses: [], synthesizedContent: '' };
+    resetActiveGenerationState();
     setError(null);
-  }, []);
+  }, [abortActiveGeneration, resetActiveGenerationState]);
 
   const handleInspectPrompt = useCallback((data: { messages: Message[], modelId: string }) => {
     setInspectingPrompt(data);
@@ -510,10 +509,7 @@ export default function Home() {
 
   const handleLoadHistory = (item: HistoryItem) => {
     // Abort any active generation to prevent session merging
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
+    abortActiveGeneration();
 
     // Switch to the session of this item
     if (item.sessionId) {
