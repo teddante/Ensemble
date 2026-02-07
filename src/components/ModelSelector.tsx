@@ -6,6 +6,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { Model } from '@/types';
 import { formatContextLength, formatPricing, getModelCapabilities, isFreeModel } from '@/lib/modelUtils';
 import { ICON_SIZE } from '@/lib/constants';
+import { buildSelectedModelIdSet, countSelectedModelsInSet, resolveSelectedModelEntries } from '@/lib/modelSelection';
 
 interface ModelSelectorProps {
     models: Model[];
@@ -55,13 +56,12 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
 
     // Get selected model objects
     const selectedModelObjects = useMemo(() => {
-        return settings.selectedModels
-            .map((id, selectionIndex) => ({
-                selectionIndex,
-                model: models.find(m => m.id === id)
-            }))
-            .filter((entry): entry is { selectionIndex: number; model: Model } => entry.model !== undefined);
+        return resolveSelectedModelEntries(settings.selectedModels, models);
     }, [models, settings.selectedModels]);
+
+    const selectedModelIdSet = useMemo(() => {
+        return buildSelectedModelIdSet(settings.selectedModels);
+    }, [settings.selectedModels]);
 
     // Filter and group models
     const { groupedModels, filteredCount } = useMemo(() => {
@@ -209,7 +209,7 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
                         {groupedModels.map(([provider, providerModels]) => {
                             const isCollapsed = collapsedProviders === 'all' || collapsedProviders.has(provider);
                             const providerModelIds = new Set(providerModels.map(m => m.id));
-                            const selectedInGroup = settings.selectedModels.filter(id => providerModelIds.has(id)).length;
+                            const selectedInGroup = countSelectedModelsInSet(settings.selectedModels, providerModelIds);
 
                             return (
                                 <div key={provider} className="model-group">
@@ -231,7 +231,7 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
                                     {!isCollapsed && (
                                         <div className="provider-models">
                                             {providerModels.map((model) => {
-                                                const isSelected = settings.selectedModels.includes(model.id);
+                                                const isSelected = selectedModelIdSet.has(model.id);
                                                 const isFree = isFreeModel(model);
                                                 const capabilities = getModelCapabilities(model);
                                                 const contextStr = formatContextLength(model.contextWindow);

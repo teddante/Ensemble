@@ -25,16 +25,31 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 const STORAGE_KEY = STORAGE_KEYS.SETTINGS;
 
 type PersistedSettings = Omit<Settings, 'apiKey'>;
+type PersistedSettingsKey = keyof PersistedSettings;
+
+const PERSISTED_SETTINGS_KEYS: PersistedSettingsKey[] = [
+    'selectedModels',
+    'modelConfigs',
+    'refinementModel',
+    'maxSynthesisChars',
+    'contextWarningThreshold',
+    'systemPrompt',
+];
+
+function assignPersistedField<K extends PersistedSettingsKey>(
+    target: PersistedSettings,
+    key: K,
+    value: PersistedSettings[K]
+): void {
+    target[key] = value;
+}
 
 function toPersistedSettings(settings: Settings): PersistedSettings {
-    return {
-        selectedModels: settings.selectedModels,
-        modelConfigs: settings.modelConfigs,
-        refinementModel: settings.refinementModel,
-        maxSynthesisChars: settings.maxSynthesisChars,
-        contextWarningThreshold: settings.contextWarningThreshold,
-        systemPrompt: settings.systemPrompt,
-    };
+    const persisted = {} as PersistedSettings;
+    for (const key of PERSISTED_SETTINGS_KEYS) {
+        assignPersistedField(persisted, key, settings[key]);
+    }
+    return persisted;
 }
 
 function loadPersistedSettings(): PersistedSettings {
@@ -45,14 +60,13 @@ function loadPersistedSettings(): PersistedSettings {
         return toPersistedSettings(defaults);
     }
 
-    return {
-        selectedModels: parsed.selectedModels ?? defaults.selectedModels,
-        modelConfigs: parsed.modelConfigs ?? defaults.modelConfigs,
-        refinementModel: parsed.refinementModel ?? defaults.refinementModel,
-        maxSynthesisChars: parsed.maxSynthesisChars ?? defaults.maxSynthesisChars,
-        contextWarningThreshold: parsed.contextWarningThreshold ?? defaults.contextWarningThreshold,
-        systemPrompt: parsed.systemPrompt ?? defaults.systemPrompt,
-    };
+    const defaultPersisted = toPersistedSettings(defaults);
+
+    const hydrated = {} as PersistedSettings;
+    for (const key of PERSISTED_SETTINGS_KEYS) {
+        assignPersistedField(hydrated, key, (parsed[key] ?? defaultPersisted[key]) as PersistedSettings[typeof key]);
+    }
+    return hydrated;
 }
 
 function loadSettings(): Settings {

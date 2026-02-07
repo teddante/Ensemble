@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Model, FALLBACK_MODELS, validateSelectedModels } from '@/types';
+import { Model, FALLBACK_MODELS } from '@/types';
 import { MODELS_CACHE_TTL, MAX_RETRIES, API_ROUTES } from '@/lib/constants';
 import { exponentialBackoff } from '@/lib/retry';
 import { getLocalStorageJSON, removeLocalStorageItem, setLocalStorageJSON } from '@/lib/storage';
 import { apiFetch } from '@/lib/apiClient';
 import { STORAGE_KEYS } from '@/lib/storageKeys';
+import { RemovedModelInfo, validateUserSelectedModels } from '@/lib/modelSelection';
 
 const CACHE_KEY = STORAGE_KEYS.MODELS_CACHE;
 const VALIDATED_FALLBACK_KEY = STORAGE_KEYS.VALIDATED_FALLBACK;
@@ -101,7 +102,8 @@ function setValidatedFallback(validModelIds: string[], invalidModelIds: string[]
  */
 function validateFallbackModels(liveModels: Model[]): { valid: Model[]; invalidIds: string[] } {
     const fallbackIds = FALLBACK_MODELS.map(m => m.id);
-    const { validModels, invalidModels } = validateSelectedModels(fallbackIds, liveModels);
+    const { validModels, removedModels } = validateUserSelectedModels(fallbackIds, liveModels);
+    const invalidModels = removedModels.map(model => model.modelId);
 
     // Log warning for stale models
     if (invalidModels.length > 0) {
@@ -126,12 +128,6 @@ function getInitialFallbackModels(): Model[] {
         return FALLBACK_MODELS.filter(m => !validated.invalidModelIds.includes(m.id));
     }
     return FALLBACK_MODELS;
-}
-
-
-export interface RemovedModelInfo {
-    modelId: string;
-    reason: 'unavailable';
 }
 
 export function useModels() {
@@ -236,6 +232,10 @@ export function useModels() {
         fetchModels(true);
     }, [fetchModels]);
 
+    const validateSelection = useCallback((selectedModels: string[], availableModels: Model[]) => {
+        return validateUserSelectedModels(selectedModels, availableModels);
+    }, []);
+
     /**
      * Reset validation state (useful when user manually changes selection)
      */
@@ -256,6 +256,7 @@ export function useModels() {
         removedModelsWarning,
         setRemovedSelectedModels,
         dismissRemovedModelsWarning,
+        validateUserSelectedModels: validateSelection,
         resetValidationState,
         validationDoneRef,
         retryFetching

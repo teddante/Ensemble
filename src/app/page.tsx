@@ -3,7 +3,7 @@
 import { MAX_SYNTHESIS_CHARS, API_ROUTES } from '@/lib/constants';
 import { estimateTokens } from '@/lib/openrouter';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Header } from '@/components/Header';
 import { SettingsModal } from '@/components/SettingsModal';
@@ -14,12 +14,13 @@ import { ChatMessage } from '@/components/ChatMessage';
 import { PromptInspector } from '@/components/PromptInspector';
 import { useModels } from '@/hooks/useModels';
 import { useSettings } from '@/hooks/useSettings';
-import { ModelResponse, StreamEvent, Message, validateSelectedModels } from '@/types';
+import { ModelResponse, StreamEvent, Message } from '@/types';
 import { apiFetch, getErrorMessage } from '@/lib/apiClient';
 
 import { useHistory, HistoryItem } from '@/hooks/useHistory';
 import { HistorySidebar } from '@/components/HistorySidebar';
 import { buildChatMessages } from '@/lib/messageBuilder';
+import { buildModelIndex } from '@/lib/modelSelection';
 
 export default function Home() {
   const { settings, hasApiKey, updateSelectedModels } = useSettings();
@@ -31,6 +32,7 @@ export default function Home() {
     removedModelsWarning,
     dismissRemovedModelsWarning,
     setRemovedSelectedModels,
+    validateUserSelectedModels,
     validationDoneRef
   } = useModels();
   const { history, addToHistory, deleteItem, clearHistory, updateHistoryItem, storageWarning } = useHistory();
@@ -79,6 +81,8 @@ export default function Home() {
   const currentSessionHistory = history.filter(item =>
     item.sessionId === currentSessionId
   );
+
+  const modelById = useMemo(() => buildModelIndex(models), [models]);
 
   const resetActiveGenerationState = useCallback(() => {
     setPrompt('');
@@ -296,12 +300,12 @@ export default function Home() {
     if (!isLoadingModels && models.length > 0 && !validationDoneRef.current && settings.selectedModels.length > 0) {
       setIsValidating(true);
 
-      const { validModels, invalidModels } = validateSelectedModels(settings.selectedModels, models);
+      const { validModels, removedModels } = validateUserSelectedModels(settings.selectedModels, models);
 
       // If models were removed, update settings and show notification
-      if (invalidModels.length > 0) {
-        console.warn('[Ensemble] Invalid user-selected models removed:', invalidModels.join(', '));
-        setRemovedSelectedModels(invalidModels.map(modelId => ({ modelId, reason: 'unavailable' as const })));
+      if (removedModels.length > 0) {
+        console.warn('[Ensemble] Invalid user-selected models removed:', removedModels.map(model => model.modelId).join(', '));
+        setRemovedSelectedModels(removedModels);
 
         // Update settings with only valid models
         if (validModels.length > 0) {
@@ -312,7 +316,7 @@ export default function Home() {
       validationDoneRef.current = true;
       setIsValidating(false);
     }
-  }, [isLoadingModels, models, settings.selectedModels, updateSelectedModels, setRemovedSelectedModels, setIsValidating, validationDoneRef]);
+  }, [isLoadingModels, models, settings.selectedModels, updateSelectedModels, setRemovedSelectedModels, setIsValidating, validateUserSelectedModels, validationDoneRef]);
 
   const handleGenerate = useCallback(async (newPrompt: string) => {
     if (!hasApiKey) {
@@ -341,7 +345,7 @@ export default function Home() {
     const contextErrors: string[] = [];
 
     settings.selectedModels.forEach(modelId => {
-      const model = models.find(m => m.id === modelId);
+      const model = modelById.get(modelId);
       if (model && model.contextWindow && approxTokens > model.contextWindow) {
         contextErrors.push(`${model.name} (Limit: ${model.contextWindow.toLocaleString()})`);
       }
@@ -449,7 +453,7 @@ export default function Home() {
       abortControllerRef.current = null;
     }
 
-  }, [hasApiKey, settings.selectedModels, settings.refinementModel, settings.modelConfigs, handleStreamEvent, models, settings.contextWarningThreshold, settings.maxSynthesisChars, settings.systemPrompt]);
+  }, [hasApiKey, settings.selectedModels, settings.refinementModel, settings.modelConfigs, handleStreamEvent, modelById, settings.contextWarningThreshold, settings.maxSynthesisChars, settings.systemPrompt]);
 
   const handleCancel = useCallback(() => {
     abortActiveGeneration();

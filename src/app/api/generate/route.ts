@@ -11,6 +11,7 @@ import { acquireLock, releaseLock } from '@/lib/sessionLock';
 import { countWords } from '@/lib/textUtils';
 import { errorResponse, validateCSRF } from '@/lib/apiSecurity';
 import { buildReasoningOptions, isReasoningModel } from '@/lib/reasoning';
+import { resolveReasoningPreference } from '@/lib/modelConfig';
 
 export const runtime = 'edge';
 
@@ -272,18 +273,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
                     // Fetch responses from all models in parallel
                     const modelPromises = selectedModelInstances.map(({ modelId, instanceId }) => {
-                        const config = modelConfigs?.[modelId]?.reasoning;
-
-                        let shouldReason = false;
-                        let effort: ReasoningParams['effort'] | undefined;
-
-                        if (config?.enabled) {
-                            shouldReason = true;
-                            effort = config.effort;
-                        } else if (globalReasoning) {
-                            shouldReason = true;
-                            effort = globalReasoning.effort;
-                        }
+                        const { shouldReason, effort } = resolveReasoningPreference(modelId, modelConfigs, globalReasoning);
 
                         const supportsReasoning = reasoningSupportedModels.has(modelId);
                         const reasoningOptions = buildReasoningOptions(shouldReason, effort, supportsReasoning);

@@ -7,6 +7,8 @@ import { Model, ReasoningParams } from '@/types';
 import { API_KEY_MASK, ICON_SIZE } from '@/lib/constants';
 import { isReasoningModel } from '@/lib/modelUtils';
 import { VALID_REASONING_EFFORTS } from '@/lib/reasoning';
+import { resolveUniqueSelectedModels } from '@/lib/modelSelection';
+import { getModelConfig } from '@/lib/modelConfig';
 import { BaseModal } from './BaseModal';
 
 interface SettingsModalProps {
@@ -22,9 +24,8 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const reasoningModels = models.filter(m =>
-        settings.selectedModels.includes(m.id) && isReasoningModel(m)
-    );
+    const reasoningModels = resolveUniqueSelectedModels(settings.selectedModels, models)
+        .filter(isReasoningModel);
 
     // Sync local state when modal opens or settings change
     useEffect(() => {
@@ -150,7 +151,7 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                             <h3 className="settings-section-heading">Model Configuration</h3>
                             <div className="model-configs">
                                 {reasoningModels.map(model => {
-                                    const config = settings.modelConfigs[model.id] || { reasoning: { enabled: false } };
+                                    const config = getModelConfig(model.id, settings.modelConfigs);
                                     const isThinking = model.id.endsWith(':thinking');
                                     // Some models might force reasoning on
                                     const isForced = isThinking;
