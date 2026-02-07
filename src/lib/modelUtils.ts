@@ -99,3 +99,20 @@ export function getModelCapabilities(model: Model): string[] {
 export function hasCapability(model: Model, capability: string): boolean {
     return getModelCapabilities(model).includes(capability);
 }
+
+/**
+ * Check if a model is free (no prompt/completion cost)
+ */
+export function isFreeModel(model: Model): boolean {
+    if (model.id.includes(':free')) return true;
+    if (!model.pricing) return false;
+    return parseFloat(model.pricing.prompt) === 0 && parseFloat(model.pricing.completion) === 0;
+}
+
+/**
+ * Resolve a model ID to its display name, with fallback
+ */
+export function getModelName(modelId: string, models: Model[]): string {
+    const model = models.find(m => m.id === modelId);
+    return model?.name || modelId.split('/').pop() || modelId;
+}

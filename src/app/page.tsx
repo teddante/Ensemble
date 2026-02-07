@@ -18,6 +18,7 @@ import { apiFetch, getErrorMessage } from '@/lib/apiClient';
 
 import { useHistory, HistoryItem } from '@/hooks/useHistory';
 import { HistorySidebar } from '@/components/HistorySidebar';
+import { buildChatMessages } from '@/lib/messageBuilder';
 
 export default function Home() {
   const { settings, hasApiKey, updateSelectedModels } = useSettings();
@@ -363,27 +364,8 @@ export default function Home() {
     abortControllerRef.current = new AbortController();
 
     // Construct message history including current prompt
-    const messages: { role: 'user' | 'assistant' | 'system'; content: string }[] = [];
-
-    // Add system prompt if configured
-    if (settings.systemPrompt) {
-      messages.push({ role: 'system', content: settings.systemPrompt });
-    }
-
     const currentHistory = historyRef.current.filter(h => h.sessionId === currentSessionIdRef.current);
-
-    // Add historical messages from current session
-    // Iterate in reverse since history is stored newest-first but we need oldest-first for context
-    for (let i = currentHistory.length - 1; i >= 0; i--) {
-      const item = currentHistory[i];
-      messages.push({ role: 'user', content: item.prompt });
-      if (item.synthesizedContent) {
-        messages.push({ role: 'assistant', content: item.synthesizedContent });
-      }
-    }
-
-    // Add current prompt
-    messages.push({ role: 'user', content: newPrompt });
+    const messages = buildChatMessages(settings.systemPrompt, currentHistory, newPrompt);
 
     try {
       const response = await apiFetch('/api/generate', {

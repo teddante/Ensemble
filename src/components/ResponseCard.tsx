@@ -5,6 +5,13 @@ import { ChevronDown, ChevronUp, CheckCircle, XCircle, Loader2, Info } from 'luc
 import { ModelResponse, Message } from '@/types';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
+const STATUS_CONFIG: Record<ModelResponse['status'], { icon: React.ReactNode; label: string }> = {
+    pending: { icon: <Loader2 size={16} className="spin status-pending" />, label: 'Waiting...' },
+    streaming: { icon: <Loader2 size={16} className="spin status-streaming" />, label: 'Streaming...' },
+    complete: { icon: <CheckCircle size={16} className="status-complete" />, label: 'Complete' },
+    error: { icon: <XCircle size={16} className="status-error" />, label: 'Error' },
+};
+
 interface ResponseCardProps {
     response: ModelResponse;
     modelName: string;
@@ -20,32 +27,7 @@ const ResponseCard = memo(function ResponseCard({
     onToggle,
     onInspect
 }: ResponseCardProps) {
-
-    const getStatusIcon = (status: ModelResponse['status']) => {
-        switch (status) {
-            case 'pending':
-                return <Loader2 size={16} className="spin status-pending" />;
-            case 'streaming':
-                return <Loader2 size={16} className="spin status-streaming" />;
-            case 'complete':
-                return <CheckCircle size={16} className="status-complete" />;
-            case 'error':
-                return <XCircle size={16} className="status-error" />;
-        }
-    };
-
-    const getStatusLabel = (status: ModelResponse['status']) => {
-        switch (status) {
-            case 'pending':
-                return 'Waiting...';
-            case 'streaming':
-                return 'Streaming...';
-            case 'complete':
-                return 'Complete';
-            case 'error':
-                return 'Error';
-        }
-    };
+    const { icon: statusIcon, label: statusLabel } = STATUS_CONFIG[response.status];
 
     return (
         <div className={`response-card ${response.status}`}>
@@ -65,8 +47,8 @@ const ResponseCard = memo(function ResponseCard({
                             </span>
                         )}
                         <span className={`response-status ${response.status}`}>
-                            {getStatusIcon(response.status)}
-                            {getStatusLabel(response.status)}
+                            {statusIcon}
+                            {statusLabel}
                         </span>
                     </div>
                 </div>

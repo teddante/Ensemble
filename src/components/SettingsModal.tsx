@@ -5,7 +5,7 @@ import { X, Eye, EyeOff, ExternalLink, Loader2 } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
 import { Model } from '@/types';
 import { API_KEY_MASK } from '@/lib/constants';
-import { useBackdropDismiss } from '@/hooks/useModalDismiss';
+import { BaseModal } from './BaseModal';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -52,8 +52,6 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
         }
     }, [isOpen, settings.apiKey]);
 
-    if (!isOpen) return null;
-
     const handleSave = async () => {
         setIsSaving(true);
         setError(null);
@@ -77,11 +75,8 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
         }
     };
 
-    const handleOverlayClick = useBackdropDismiss<HTMLDivElement>(onClose, isSaving);
-
     return (
-        <div className="modal-overlay" onClick={handleOverlayClick}>
-            <div className="modal-content">
+        <BaseModal isOpen={isOpen} onClose={onClose} preventClose={isSaving}>
                 <div className="modal-header">
                     <h2>Settings</h2>
                     <button className="modal-close" onClick={onClose} aria-label="Close" disabled={isSaving}>
@@ -300,7 +295,6 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                         )}
                     </button>
                 </div>
-            </div>
-        </div>
+        </BaseModal>
     );
 }

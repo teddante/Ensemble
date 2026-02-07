@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Model, FALLBACK_MODELS, validateSelectedModels } from '@/types';
-import { MODELS_CACHE_TTL, MAX_RETRIES, INITIAL_RETRY_DELAY_MS } from '@/lib/constants';
+import { MODELS_CACHE_TTL, MAX_RETRIES } from '@/lib/constants';
+import { exponentialBackoff } from '@/lib/retry';
 import { getLocalStorageJSON, removeLocalStorageItem, setLocalStorageJSON } from '@/lib/storage';
 import { apiFetch } from '@/lib/apiClient';
+import { STORAGE_KEYS } from '@/lib/storageKeys';
 
-const CACHE_KEY = 'ensemble_models_cache';
-const VALIDATED_FALLBACK_KEY = 'ensemble_validated_fallback';
+const CACHE_KEY = STORAGE_KEYS.MODELS_CACHE;
+const VALIDATED_FALLBACK_KEY = STORAGE_KEYS.VALIDATED_FALLBACK;
 
 /**
  * Cache version - bump this when the Model schema changes
@@ -126,10 +128,6 @@ function getInitialFallbackModels(): Model[] {
     return FALLBACK_MODELS;
 }
 
-async function wait(attempt: number): Promise<void> {
-    const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
-    await new Promise(resolve => setTimeout(resolve, delay));
-}
 
 export interface RemovedModelInfo {
     modelId: string;
@@ -235,7 +233,7 @@ export function useModels() {
                 console.warn(`Models fetch attempt ${attempt + 1} failed:`, lastError.message);
 
                 if (attempt < MAX_RETRIES - 1) {
-                    await wait(attempt);
+                    await exponentialBackoff(attempt);
                 }
             }
         }

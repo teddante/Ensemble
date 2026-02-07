@@ -2,7 +2,7 @@
 
 import { AlertTriangle } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { useBackdropDismiss, useEscapeDismiss } from '@/hooks/useModalDismiss';
+import { BaseModal } from './BaseModal';
 
 interface ConfirmModalProps {
     isOpen: boolean;
@@ -34,12 +34,6 @@ export function ConfirmModal({
         }
     }, [isOpen]);
 
-    useEscapeDismiss({ enabled: isOpen, onDismiss: onCancel, target: 'document' });
-
-    if (!isOpen) return null;
-
-    const handleOverlayClick = useBackdropDismiss<HTMLDivElement>(onCancel);
-
     const getVariantColor = () => {
         switch (variant) {
             case 'danger':
@@ -53,18 +47,15 @@ export function ConfirmModal({
     };
 
     return (
-        <div className="modal-overlay" onClick={handleOverlayClick} style={{ zIndex: 1001 }}>
-            <div
-                className="modal-content"
-                style={{
-                    maxWidth: '400px',
-                    textAlign: 'center',
-                }}
-                role="alertdialog"
-                aria-modal="true"
-                aria-labelledby="confirm-title"
-                aria-describedby="confirm-message"
-            >
+        <BaseModal
+            isOpen={isOpen}
+            onClose={onCancel}
+            overlayStyle={{ zIndex: 1001 }}
+            contentStyle={{ maxWidth: '400px', textAlign: 'center' }}
+            role="alertdialog"
+            ariaLabelledBy="confirm-title"
+            ariaDescribedBy="confirm-message"
+        >
                 <div className="modal-header" style={{ justifyContent: 'center', borderBottom: 'none' }}>
                     <div style={{
                         width: '48px',
@@ -107,7 +98,6 @@ export function ConfirmModal({
                         {confirmText}
                     </button>
                 </div>
-            </div>
-        </div>
+        </BaseModal>
     );
 }

@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { ModelResponse, Model, Message } from '@/types';
 import { ResponseCard } from './ResponseCard';
+import { getModelName } from '@/lib/modelUtils';
 
 interface ResponsePanelProps {
     responses: ModelResponse[];
@@ -29,11 +30,6 @@ export function ResponsePanel({ responses, models, onInspectModel }: ResponsePan
         return null;
     }
 
-    const getModelName = (modelId: string): string => {
-        const model = models.find(m => m.id === modelId);
-        return model?.name || modelId.split('/').pop() || modelId;
-    };
-
     return (
         <div className="response-panel">
             <h3 className="response-panel-title">Model Responses</h3>
@@ -42,7 +38,7 @@ export function ResponsePanel({ responses, models, onInspectModel }: ResponsePan
                     <ResponseCard
                         key={response.modelId}
                         response={response}
-                        modelName={getModelName(response.modelId)}
+                        modelName={getModelName(response.modelId, models)}
                         isExpanded={expandedModels.has(response.modelId)}
                         onToggle={toggleExpand}
                         onInspect={onInspectModel}

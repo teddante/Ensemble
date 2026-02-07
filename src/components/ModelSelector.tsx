@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { Check, Search, ChevronDown, ChevronRight, X, Zap, Wrench, Eye, Brain, Braces } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
 import { Model } from '@/types';
-import { formatContextLength, formatPricing, getModelCapabilities } from '@/lib/modelUtils';
+import { formatContextLength, formatPricing, getModelCapabilities, isFreeModel } from '@/lib/modelUtils';
 
 interface ModelSelectorProps {
     models: Model[];
@@ -12,13 +12,6 @@ interface ModelSelectorProps {
 }
 
 type FilterType = 'all' | 'free';
-
-// Check if model is free
-function isFreeModel(model: Model): boolean {
-    if (model.id.includes(':free')) return true;
-    if (!model.pricing) return false;
-    return parseFloat(model.pricing.prompt) === 0 && parseFloat(model.pricing.completion) === 0;
-}
 
 export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
     const { settings, updateSelectedModels } = useSettings();

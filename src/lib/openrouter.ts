@@ -2,43 +2,12 @@
 import { OpenRouter } from '@openrouter/sdk';
 import { ReasoningParams, Message } from '@/types';
 import { OpenRouterUsage, OpenRouterDelta } from '@/types/openrouter.types';
-import { MAX_SYNTHESIS_CHARS, MAX_RETRIES, INITIAL_RETRY_DELAY_MS, REQUEST_TIMEOUT_MS, ACTIVITY_TIMEOUT_MS } from '@/lib/constants';
+import { MAX_SYNTHESIS_CHARS, MAX_RETRIES, REQUEST_TIMEOUT_MS, ACTIVITY_TIMEOUT_MS } from '@/lib/constants';
+import { exponentialBackoff } from '@/lib/retry';
+import { isRetryableError } from '@/lib/errorClassifier';
 
 // Re-export for backward compatibility
 export { MAX_SYNTHESIS_CHARS };
-
-// Retry configuration
-const RETRYABLE_STATUS_CODES = [429, 502, 503, 504, 408, 524]; // Added 408 (Request Timeout) and 524 (Cloudflare timeout)
-
-// Check if an error is retryable
-function isRetryableError(error: unknown): boolean {
-    if (error instanceof Error) {
-        const message = error.message.toLowerCase();
-        // Check for rate limiting, timeouts, or server errors
-        if (message.includes('rate limit') ||
-            message.includes('too many requests') ||
-            message.includes('service unavailable') ||
-            message.includes('bad gateway') ||
-            message.includes('gateway timeout') ||
-            message.includes('timeout') ||
-            message.includes('timed out')) {
-            return true;
-        }
-        // Check for status code in error message
-        for (const code of RETRYABLE_STATUS_CODES) {
-            if (message.includes(String(code))) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-// Wait with exponential backoff
-async function wait(attempt: number): Promise<void> {
-    const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
-    await new Promise(resolve => setTimeout(resolve, delay));
-}
 
 export function createOpenRouterClient(apiKey: string): OpenRouter {
     return new OpenRouter({
@@ -231,7 +200,7 @@ export async function streamModelResponse({
 
                     // Reset the activity controller for the retry
                     // Note: We create a fresh timeout in the next iteration
-                    await wait(attempt);
+                    await exponentialBackoff(attempt);
                     continue;
                 }
 
@@ -251,7 +220,7 @@ export async function streamModelResponse({
         // If we have a retryable error and more attempts, wait and retry
         if (lastError && attempt < MAX_RETRIES) {
             console.warn(`Retry attempt ${attempt + 1} for model ${model}: ${lastError.message}`);
-            await wait(attempt);
+            await exponentialBackoff(attempt);
             lastError = null;
         }
     }

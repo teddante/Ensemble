@@ -1,7 +1,8 @@
 import React from 'react';
 import { Message } from '@/types';
 import { X, Copy, Check, Download } from 'lucide-react';
-import { useBackdropDismiss, useEscapeDismiss } from '@/hooks/useModalDismiss';
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
+import { BaseModal } from './BaseModal';
 
 interface PromptInspectorProps {
     isOpen: boolean;
@@ -12,19 +13,7 @@ interface PromptInspectorProps {
 
 export function PromptInspector({ isOpen, onClose, messages, modelId }: PromptInspectorProps) {
     const [copiedIndex, setCopiedIndex] = React.useState<number | null>(null);
-    const [copiedAll, setCopiedAll] = React.useState(false);
-    const modalRef = React.useRef<HTMLDivElement>(null);
-
-    useEscapeDismiss({ enabled: isOpen, onDismiss: onClose });
-
-    // Focus modal on open
-    React.useEffect(() => {
-        if (isOpen && modalRef.current) {
-            modalRef.current.focus();
-        }
-    }, [isOpen]);
-
-    if (!isOpen) return null;
+    const { copied: copiedAll, copy: copyAll } = useCopyToClipboard();
 
     const handleCopy = async (content: string, index: number) => {
         try {
@@ -36,15 +25,9 @@ export function PromptInspector({ isOpen, onClose, messages, modelId }: PromptIn
         }
     };
 
-    const handleCopyAll = async () => {
-        try {
-            const allContent = messages.map(m => `[${m.role.toUpperCase()}]\n${m.content}`).join('\n\n');
-            await navigator.clipboard.writeText(allContent);
-            setCopiedAll(true);
-            setTimeout(() => setCopiedAll(false), 2000);
-        } catch (err) {
-            console.error('Failed to copy all text: ', err);
-        }
+    const handleCopyAll = () => {
+        const allContent = messages.map(m => `[${m.role.toUpperCase()}]\n${m.content}`).join('\n\n');
+        copyAll(allContent);
     };
 
     const handleDownloadJSON = () => {
@@ -61,21 +44,14 @@ export function PromptInspector({ isOpen, onClose, messages, modelId }: PromptIn
         }
     };
 
-    const handleBackdropClick = useBackdropDismiss<HTMLDivElement>(onClose);
-
     return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
-            onClick={handleBackdropClick}
+        <BaseModal
+            isOpen={isOpen}
+            onClose={onClose}
+            overlayClassName="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+            contentClassName="bg-background-secondary border border-border rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col outline-none"
+            ariaLabelledBy="prompt-inspector-title"
         >
-            <div
-                ref={modalRef}
-                tabIndex={-1}
-                className="bg-background-secondary border border-border rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col outline-none"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="prompt-inspector-title"
-            >
                 <div className="flex items-center justify-between p-4 border-b border-border">
                     <div className="flex-1 min-w-0 mr-4">
                         <h2 id="prompt-inspector-title" className="text-lg font-semibold text-text-primary">
@@ -137,7 +113,6 @@ export function PromptInspector({ isOpen, onClose, messages, modelId }: PromptIn
                         </div>
                     ))}
                 </div>
-            </div>
-        </div>
+        </BaseModal>
     );
 }

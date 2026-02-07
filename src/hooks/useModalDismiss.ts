@@ -25,8 +25,8 @@ export function useEscapeDismiss({
             }
         };
 
-        eventTarget.addEventListener('keydown', handleKeyDown);
-        return () => eventTarget.removeEventListener('keydown', handleKeyDown);
+        eventTarget.addEventListener('keydown', handleKeyDown as EventListener);
+        return () => eventTarget.removeEventListener('keydown', handleKeyDown as EventListener);
     }, [enabled, onDismiss, target]);
 }
 

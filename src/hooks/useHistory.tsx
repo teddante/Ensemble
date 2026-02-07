@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { ModelResponse, Message } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { getLocalStorageJSON, removeLocalStorageItem } from '@/lib/storage';
+import { STORAGE_KEYS } from '@/lib/storageKeys';
 
 export interface HistoryItem {
     id: string;
@@ -21,7 +22,7 @@ export interface HistoryItem {
     };
 }
 
-const STORAGE_KEY = 'ensemble_history';
+const STORAGE_KEY = STORAGE_KEYS.HISTORY;
 
 export function useHistory() {
     const [history, setHistory] = useState<HistoryItem[]>(() => {

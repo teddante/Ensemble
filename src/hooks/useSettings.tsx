@@ -6,6 +6,7 @@ import { API_KEY_MASK } from '@/lib/constants';
 import { createDefaultSettings } from '@/lib/settingsDefaults';
 import { getErrorMessage, apiFetch } from '@/lib/apiClient';
 import { getLocalStorageJSON, setLocalStorageJSON } from '@/lib/storage';
+import { STORAGE_KEYS } from '@/lib/storageKeys';
 
 interface SettingsContextType {
     settings: Settings;
@@ -21,7 +22,7 @@ interface SettingsContextType {
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'ensemble-settings';
+const STORAGE_KEY = STORAGE_KEYS.SETTINGS;
 
 type PersistedSettings = Omit<Settings, 'apiKey'>;
 

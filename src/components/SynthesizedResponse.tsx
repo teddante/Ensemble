@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
 import { Copy, Check, Sparkles, Loader2 } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
 
 interface SynthesizedResponseProps {
     content: string;
@@ -12,19 +12,7 @@ interface SynthesizedResponseProps {
 }
 
 export function SynthesizedResponse({ content, isStreaming, isGenerating, truncatedModels = [] }: SynthesizedResponseProps) {
-    const [copied, setCopied] = useState(false);
-
-    const handleCopy = async () => {
-        if (!content) return;
-
-        try {
-            await navigator.clipboard.writeText(content);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        } catch (error) {
-            console.error('Failed to copy:', error);
-        }
-    };
+    const { copied, copy } = useCopyToClipboard();
 
     if (!content && !isGenerating) {
         return null;
@@ -46,7 +34,7 @@ export function SynthesizedResponse({ content, isStreaming, isGenerating, trunca
                 {content && !isStreaming && (
                     <button
                         className="copy-button"
-                        onClick={handleCopy}
+                        onClick={() => copy(content)}
                         aria-label={copied ? 'Copied!' : 'Copy to clipboard'}
                     >
                         {copied ? (
