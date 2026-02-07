@@ -6,6 +6,7 @@ import { MAX_SYNTHESIS_CHARS, MAX_RETRIES, REQUEST_TIMEOUT_MS, ACTIVITY_TIMEOUT_
 import { exponentialBackoff } from '@/lib/retry';
 import { isRetryableError } from '@/lib/errorClassifier';
 import { countWords } from '@/lib/textUtils';
+import { isReasoningUnsupportedError } from '@/lib/reasoning';
 
 export function createOpenRouterClient(apiKey: string): OpenRouter {
     return new OpenRouter({
@@ -45,6 +46,9 @@ export async function streamModelResponse({
     const client = createOpenRouterClient(apiKey);
 
     let lastError: Error | null = null;
+    let reasoningForRequest = reasoning;
+    let includeReasoningForRequest = includeReasoning;
+    let disabledReasoningDueToProvider = false;
 
     // Prepare messages for chat completion
     const chatMessages = messages && messages.length > 0
@@ -94,12 +98,12 @@ export async function streamModelResponse({
                 {
                     model,
                     messages: chatMessages,
-                    reasoning: reasoning,
+                    reasoning: reasoningForRequest,
                     stream: true,
                     // Use snake_case for OpenAI compatibility
                     stream_options: {
                         include_usage: true,
-                        include_reasoning: includeReasoning
+                        include_reasoning: includeReasoningForRequest
                     }
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 } as any,
@@ -110,12 +114,23 @@ export async function streamModelResponse({
             // Once streaming starts, switch to shorter activity timeout
             resetActivityTimeout(ACTIVITY_TIMEOUT_MS);
 
+            let retryWithoutReasoning = false;
             for await (const chunk of stream) {
                 // Reset activity timeout on each chunk - model is still responding
                 resetActivityTimeout(ACTIVITY_TIMEOUT_MS);
                 // Check for errors in chunk
                 if ('error' in chunk && chunk.error) {
                     const errorMessage = chunk.error.message || 'Unknown error';
+
+                    if (!disabledReasoningDueToProvider
+                        && (reasoningForRequest || includeReasoningForRequest)
+                        && isReasoningUnsupportedError(errorMessage)) {
+                        disabledReasoningDueToProvider = true;
+                        reasoningForRequest = undefined;
+                        includeReasoningForRequest = false;
+                        retryWithoutReasoning = true;
+                        break;
+                    }
 
                     // Check if this error is retryable
                     if (attempt < MAX_RETRIES && isRetryableError(new Error(errorMessage))) {
@@ -172,6 +187,10 @@ export async function streamModelResponse({
                 }
             }
 
+            if (retryWithoutReasoning) {
+                continue;
+            }
+
             // Stream completed successfully - clear timeout and complete
             clearActivityTimeout();
             if (!lastError || fullContent.length > 0) {
@@ -182,6 +201,15 @@ export async function streamModelResponse({
             clearActivityTimeout();
             console.error(`Stream error for model ${model}:`, error); // Log the real error
             if (error instanceof Error) {
+                if (!disabledReasoningDueToProvider
+                    && (reasoningForRequest || includeReasoningForRequest)
+                    && isReasoningUnsupportedError(error.message)) {
+                    disabledReasoningDueToProvider = true;
+                    reasoningForRequest = undefined;
+                    includeReasoningForRequest = false;
+                    continue;
+                }
+
                 // Check if user explicitly cancelled (AbortError from user signal, not our timeout)
                 if (error.name === 'AbortError' && signal?.aborted) {
                     onError('Request cancelled');

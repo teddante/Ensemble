@@ -1,6 +1,7 @@
 // Utility functions for formatting and displaying model metadata
 
 import { Model } from '@/types';
+import { isReasoningModel as isReasoningModelFromUtils, supportsReasoningByParameters } from '@/lib/reasoning';
 
 /**
  * Format context window size for display
@@ -81,7 +82,7 @@ export function getModelCapabilities(model: Model): string[] {
     }
 
     // Reasoning capability
-    if (params.includes('reasoning') || params.includes('include_reasoning')) {
+    if (supportsReasoningByParameters(params)) {
         capabilities.push('reasoning');
     }
 
@@ -117,22 +118,9 @@ export function getModelName(modelId: string, models: Model[]): string {
     return model?.name || modelId.split('/').pop() || modelId;
 }
 
-const KNOWN_REASONING_PATTERNS = [
-    'o1', 'o3',
-    'deepseek-r1', 'deepseek/deepseek-r1',
-    'qwq',
-];
-
 /**
  * Determines if a model supports reasoning/thinking capabilities.
  */
 export function isReasoningModel(model: Model): boolean {
-    const isThinking = model.id.endsWith(':thinking') || model.id.includes('-thinking');
-    const hasReasoningParam = model.supported_parameters?.includes('reasoning')
-        || model.supported_parameters?.includes('include_reasoning');
-    const isKnownReasoningModel = KNOWN_REASONING_PATTERNS.some(pattern =>
-        model.id.toLowerCase().includes(pattern)
-    );
-
-    return isThinking || hasReasoningParam || isKnownReasoningModel;
+    return isReasoningModelFromUtils(model);
 }

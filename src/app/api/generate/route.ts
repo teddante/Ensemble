@@ -10,6 +10,7 @@ import { checkRateLimit } from '@/lib/rateLimit';
 import { acquireLock, releaseLock } from '@/lib/sessionLock';
 import { countWords } from '@/lib/textUtils';
 import { errorResponse, validateCSRF } from '@/lib/apiSecurity';
+import { buildReasoningOptions, isReasoningModel } from '@/lib/reasoning';
 
 export const runtime = 'edge';
 
@@ -251,12 +252,30 @@ export async function POST(request: NextRequest): Promise<Response> {
         const stream = new ReadableStream({
             async start(controller) {
                 try {
+                    const reasoningSupportedModels = new Set<string>();
+                    try {
+                        const modelListResponse = await client.models.list();
+                        for (const modelData of modelListResponse.data ?? []) {
+                            const modelId = (modelData.id ?? '').toString();
+                            if (!modelId) continue;
+                            const supportedParameters = modelData.supportedParameters;
+                            if (isReasoningModel({ id: modelId, supported_parameters: supportedParameters })) {
+                                reasoningSupportedModels.add(modelId);
+                            }
+                        }
+                    } catch (error) {
+                        logger.warn('Failed to load model capability metadata; disabling reasoning for safety', {
+                            requestId,
+                            error: handleOpenRouterError(error),
+                        });
+                    }
+
                     // Fetch responses from all models in parallel
                     const modelPromises = selectedModelInstances.map(({ modelId, instanceId }) => {
                         const config = modelConfigs?.[modelId]?.reasoning;
 
                         let shouldReason = false;
-                        let effort = undefined;
+                        let effort: ReasoningParams['effort'] | undefined;
 
                         if (config?.enabled) {
                             shouldReason = true;
@@ -266,7 +285,8 @@ export async function POST(request: NextRequest): Promise<Response> {
                             effort = globalReasoning.effort;
                         }
 
-                        const reasoningParams = shouldReason ? { effort } : undefined;
+                        const supportsReasoning = reasoningSupportedModels.has(modelId);
+                        const reasoningOptions = buildReasoningOptions(shouldReason, effort, supportsReasoning);
 
                         return generateSingleModelResponse(
                             modelId,
@@ -274,8 +294,8 @@ export async function POST(request: NextRequest): Promise<Response> {
                             promptValidation.sanitized!,
                             messages,
                             apiKeyValidation.sanitized!,
-                            reasoningParams,
-                            shouldReason,
+                            reasoningOptions.reasoning,
+                            reasoningOptions.includeReasoning,
                             controller,
                             abortController.signal
                         );

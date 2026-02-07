@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import { X, Eye, EyeOff, ExternalLink, Loader2 } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
-import { Model } from '@/types';
+import { Model, ReasoningParams } from '@/types';
 import { API_KEY_MASK, ICON_SIZE } from '@/lib/constants';
 import { isReasoningModel } from '@/lib/modelUtils';
+import { VALID_REASONING_EFFORTS } from '@/lib/reasoning';
 import { BaseModal } from './BaseModal';
 
 interface SettingsModalProps {
@@ -196,7 +197,7 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                                                                     reasoning: {
                                                                         ...config.reasoning,
                                                                         enabled: true,
-                                                                        effort: e.target.value as 'low' | 'medium' | 'high'
+                                                                        effort: e.target.value as ReasoningParams['effort']
                                                                     }
                                                                 });
                                                             }}
@@ -204,9 +205,11 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                                                             style={{ fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
                                                             disabled={isSaving}
                                                         >
-                                                            <option value="low">Low</option>
-                                                            <option value="medium">Medium</option>
-                                                            <option value="high">High</option>
+                                                            {VALID_REASONING_EFFORTS.map((effortValue) => (
+                                                                <option key={effortValue} value={effortValue}>
+                                                                    {effortValue.toUpperCase()}
+                                                                </option>
+                                                            ))}
                                                         </select>
                                                     </div>
                                                 )}

@@ -36,7 +36,7 @@ export interface Model {
 }
 
 export interface ReasoningParams {
-    effort?: 'high' | 'medium' | 'low' | 'minimal' | 'none';
+    effort?: 'high' | 'medium' | 'low' | 'minimal' | 'none' | 'xhigh';
     max_tokens?: number;
     exclude?: boolean;
     enabled?: boolean;
@@ -103,7 +103,7 @@ export interface StreamEvent {
 export interface ModelConfig {
     reasoning?: {
         enabled: boolean;
-        effort?: 'low' | 'medium' | 'high';
+        effort?: ReasoningParams['effort'];
     };
 }
 
