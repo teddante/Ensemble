@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Settings, ModelConfig } from '@/types';
-import { API_KEY_MASK } from '@/lib/constants';
+import { API_KEY_MASK, API_ROUTES } from '@/lib/constants';
 import { createDefaultSettings } from '@/lib/settingsDefaults';
 import { getErrorMessage, apiFetch } from '@/lib/apiClient';
 import { getLocalStorageJSON, setLocalStorageJSON } from '@/lib/storage';
@@ -80,7 +80,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const checkServerKey = async () => {
         setIsCheckingKey(true);
         try {
-            const res = await apiFetch('/api/key');
+            const res = await apiFetch(API_ROUTES.KEY);
             if (res.ok) {
                 const data = await res.json();
                 setHasApiKey(data.hasKey);
@@ -113,7 +113,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         if (!key) {
             // Delete key
             try {
-                const res = await apiFetch('/api/key', {
+                const res = await apiFetch(API_ROUTES.KEY, {
                     method: 'DELETE',
                 });
                 if (res.ok) {
@@ -130,7 +130,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
         // Save key to server
         try {
-            const res = await apiFetch('/api/key', {
+            const res = await apiFetch(API_ROUTES.KEY, {
                 method: 'POST',
                 body: JSON.stringify({ apiKey: key }),
                 headers: {

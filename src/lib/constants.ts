@@ -22,3 +22,10 @@ export const ACTIVITY_TIMEOUT_MS = 30000; // 30s inactivity timeout - resets on 
 
 // Encryption
 export const ENCRYPTION_MAGIC_PREFIX = 'ENS:';
+
+// API Routes
+export const API_ROUTES = {
+    KEY: '/api/key',
+    MODELS: '/api/models',
+    GENERATE: '/api/generate',
+} as const;

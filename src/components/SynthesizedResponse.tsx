@@ -53,17 +53,11 @@ export function SynthesizedResponse({ content, isStreaming, isGenerating, trunca
             </div>
 
             {truncatedModels.length > 0 && (
-                <div className="truncation-warning" style={{
-                    backgroundColor: 'rgba(234, 179, 8, 0.1)',
-                    border: '1px solid rgba(234, 179, 8, 0.2)',
-                    color: '#fbbf24',
-                    padding: '0.75rem',
-                    borderRadius: '0.5rem',
-                    marginBottom: '1rem',
-                    fontSize: '0.9rem',
+                <div className="prompt-warning warning-caution" style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.5rem'
+                    gap: '0.5rem',
+                    fontSize: '0.9rem',
                 }}>
                     <span>⚠️</span>
                     <span>

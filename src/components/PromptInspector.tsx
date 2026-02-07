@@ -1,7 +1,6 @@
-import React from 'react';
 import { Message } from '@/types';
 import { X, Copy, Check, Download } from 'lucide-react';
-import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
+import { useCopyToClipboard, useCopyToClipboardMap } from '@/hooks/useCopyToClipboard';
 import { BaseModal } from './BaseModal';
 
 interface PromptInspectorProps {
@@ -12,18 +11,8 @@ interface PromptInspectorProps {
 }
 
 export function PromptInspector({ isOpen, onClose, messages, modelId }: PromptInspectorProps) {
-    const [copiedIndex, setCopiedIndex] = React.useState<number | null>(null);
+    const { copy: copyMessage, isCopied } = useCopyToClipboardMap<number>();
     const { copied: copiedAll, copy: copyAll } = useCopyToClipboard();
-
-    const handleCopy = async (content: string, index: number) => {
-        try {
-            await navigator.clipboard.writeText(content);
-            setCopiedIndex(index);
-            setTimeout(() => setCopiedIndex(null), 2000);
-        } catch (err) {
-            console.error('Failed to copy text: ', err);
-        }
-    };
 
     const handleCopyAll = () => {
         const allContent = messages.map(m => `[${m.role.toUpperCase()}]\n${m.content}`).join('\n\n');
@@ -100,11 +89,11 @@ export function PromptInspector({ isOpen, onClose, messages, modelId }: PromptIn
                                     {msg.role}
                                 </span>
                                 <button
-                                    onClick={() => handleCopy(msg.content, index)}
+                                    onClick={() => copyMessage(msg.content, index)}
                                     className="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-surface-tertiary rounded transition-colors"
                                     title="Copy content"
                                 >
-                                    {copiedIndex === index ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                                    {isCopied(index) ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
                                 </button>
                             </div>
                             <div className="text-sm font-mono whitespace-pre-wrap text-text-secondary leading-relaxed bg-surface-secondary/50 p-2 rounded">

@@ -5,6 +5,7 @@ import { X, Eye, EyeOff, ExternalLink, Loader2 } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
 import { Model } from '@/types';
 import { API_KEY_MASK } from '@/lib/constants';
+import { isReasoningModel } from '@/lib/modelUtils';
 import { BaseModal } from './BaseModal';
 
 interface SettingsModalProps {
@@ -20,29 +21,9 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Filter models that support reasoning
-    // Detection: 
-    // 1. Model ID ends with :thinking variant
-    // 2. supported_parameters includes 'reasoning' or 'include_reasoning'
-    // 3. Known reasoning model patterns (o1, o3, deepseek-r1, etc.)
-    const reasoningModels = models.filter(m => {
-        const isThinking = m.id.endsWith(':thinking') || m.id.includes('-thinking');
-        const hasReasoningParam = m.supported_parameters?.includes('reasoning') || m.supported_parameters?.includes('include_reasoning');
-
-        // Known reasoning models by ID pattern
-        const knownReasoningPatterns = [
-            'o1', 'o3', // OpenAI reasoning models
-            'deepseek-r1', 'deepseek/deepseek-r1', // DeepSeek R1
-            'qwq', // Alibaba QwQ
-        ];
-        const isKnownReasoningModel = knownReasoningPatterns.some(pattern =>
-            m.id.toLowerCase().includes(pattern)
-        );
-
-        // Only show config if model is selected
-        const isSelected = settings.selectedModels.includes(m.id);
-        return isSelected && (isThinking || hasReasoningParam || isKnownReasoningModel);
-    });
+    const reasoningModels = models.filter(m =>
+        settings.selectedModels.includes(m.id) && isReasoningModel(m)
+    );
 
     // Sync local state when modal opens or settings change
     useEffect(() => {
@@ -111,9 +92,7 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                             </button>
                         </div>
                         {error && (
-                            <p className="form-error" style={{ color: 'var(--accent-error)', marginTop: '0.5rem', fontSize: '0.875rem' }}>
-                                {error}
-                            </p>
+                            <p className="form-error">{error}</p>
                         )}
                         <p className="form-help">
                             Get your API key from{' '}
@@ -166,8 +145,8 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
 
                     {reasoningModels.length > 0 && (
                         <>
-                            <div className="section-divider" style={{ margin: '1.5rem 0', borderTop: '1px solid var(--color-border)' }} />
-                            <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>Model Configuration</h3>
+                            <hr className="section-divider" />
+                            <h3 className="settings-section-heading">Model Configuration</h3>
                             <div className="model-configs">
                                 {reasoningModels.map(model => {
                                     const config = settings.modelConfigs[model.id] || { reasoning: { enabled: false } };
@@ -176,14 +155,14 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                                     const isForced = isThinking;
 
                                     return (
-                                        <div key={model.id} className="form-group" style={{ marginBottom: '1.5rem', background: 'var(--color-bg-secondary)', padding: '1rem', borderRadius: '8px' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                        <div key={model.id} className="form-group model-config-card">
+                                            <div className="model-config-header">
                                                 <label style={{ fontWeight: 600, marginBottom: 0 }}>{model.name}</label>
-                                                <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>{model.provider}</span>
+                                                <span className="model-config-provider">{model.provider}</span>
                                             </div>
 
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <div className="model-config-options">
+                                                <div className="model-config-toggle">
                                                     <input
                                                         type="checkbox"
                                                         id={`reasoning-toggle-${model.id}`}
@@ -206,7 +185,7 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                                                 </div>
 
                                                 {(config.reasoning?.enabled || isForced) && (
-                                                    <div style={{ paddingLeft: '1.5rem' }}>
+                                                    <div className="model-config-effort">
                                                         <label htmlFor={`effort-${model.id}`} style={{ fontSize: '0.875rem' }}>Reasoning Effort</label>
                                                         <select
                                                             id={`effort-${model.id}`}
@@ -239,9 +218,9 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                         </>
                     )}
 
-                    <div className="section-divider" style={{ margin: '1.5rem 0', borderTop: '1px solid var(--color-border)' }} />
+                    <hr className="section-divider" />
 
-                    <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>Limits & Thresholds</h3>
+                    <h3 className="settings-section-heading">Limits & Thresholds</h3>
 
                     <div className="form-group">
                         <label htmlFor="max-synthesis-chars">Max Synthesis Characters</label>

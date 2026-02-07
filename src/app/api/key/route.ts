@@ -1,30 +1,20 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateApiKey } from '@/lib/validation';
-import { encrypt, decrypt, isEncrypted } from '@/lib/crypto';
-import { invalidRequestResponse, validateCSRF } from '@/lib/apiSecurity';
+import { encrypt, decrypt } from '@/lib/crypto';
+import { withCSRF } from '@/lib/apiSecurity';
 
 export const runtime = 'edge';
 
 const COOKIE_NAME = 'ensemble_api_key';
 
-export async function GET(request: NextRequest) {
-    // CSRF protection for consistency
-    if (!validateCSRF(request)) {
-        return invalidRequestResponse();
-    }
-
+export const GET = withCSRF(async (_request: NextRequest) => {
     const cookieStore = await cookies();
     const hasKey = cookieStore.has(COOKIE_NAME);
     return NextResponse.json({ hasKey });
-}
+});
 
-export async function POST(request: NextRequest) {
-    // CSRF protection
-    if (!validateCSRF(request)) {
-        return invalidRequestResponse();
-    }
-
+export const POST = withCSRF(async (request: NextRequest) => {
     try {
         const body = await request.json();
         const { apiKey } = body;
@@ -34,9 +24,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: validation.error }, { status: 400 });
         }
 
-        // Encrypt the API key before storing
         const encryptedKey = await encrypt(validation.sanitized!);
-
         const cookieStore = await cookies();
 
         cookieStore.set(COOKIE_NAME, encryptedKey, {
@@ -50,24 +38,18 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error('Failed to save API key:', error);
-        // Don't leak implementation details
         return NextResponse.json(
             { error: 'Failed to save API key' },
             { status: 500 }
         );
     }
-}
+});
 
-export async function DELETE(request: NextRequest) {
-    // CSRF protection
-    if (!validateCSRF(request)) {
-        return invalidRequestResponse();
-    }
-
+export const DELETE = withCSRF(async (_request: NextRequest) => {
     const cookieStore = await cookies();
     cookieStore.delete(COOKIE_NAME);
     return NextResponse.json({ success: true });
-}
+});
 
 // Helper to get decrypted API key from cookie
 export async function getApiKeyFromCookie(): Promise<string | null> {
@@ -79,16 +61,9 @@ export async function getApiKeyFromCookie(): Promise<string | null> {
     }
 
     try {
-        // Handle migration from unencrypted to encrypted keys
-        if (isEncrypted(encryptedKey)) {
-            return await decrypt(encryptedKey);
-        } else {
-            // Legacy unencrypted key - return as-is (will be re-encrypted on next save)
-            return encryptedKey;
-        }
+        return await decrypt(encryptedKey);
     } catch (error) {
         console.error('Failed to decrypt API key:', error);
         return null;
     }
 }
-

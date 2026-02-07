@@ -5,9 +5,7 @@ import { OpenRouterUsage, OpenRouterDelta } from '@/types/openrouter.types';
 import { MAX_SYNTHESIS_CHARS, MAX_RETRIES, REQUEST_TIMEOUT_MS, ACTIVITY_TIMEOUT_MS } from '@/lib/constants';
 import { exponentialBackoff } from '@/lib/retry';
 import { isRetryableError } from '@/lib/errorClassifier';
-
-// Re-export for backward compatibility
-export { MAX_SYNTHESIS_CHARS };
+import { countWords } from '@/lib/textUtils';
 
 export function createOpenRouterClient(apiKey: string): OpenRouter {
     return new OpenRouter({
@@ -292,7 +290,7 @@ export function estimateTokens(text: string): number {
     if (!text) return 0;
 
     // Count words (more reliable for English)
-    const words = text.split(/\s+/).filter(Boolean).length;
+    const words = countWords(text);
 
     // Count characters
     const chars = text.length;

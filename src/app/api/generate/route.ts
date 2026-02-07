@@ -1,14 +1,15 @@
 import { NextRequest } from 'next/server';
 import { OpenRouter } from '@openrouter/sdk';
 import { validatePrompt, validateApiKey, validateModels } from '@/lib/validation';
-import { MAX_SYNTHESIS_CHARS, createSynthesisPrompt, streamModelResponse as libStreamModelResponse, validateSynthesisContext } from '@/lib/openrouter';
+import { createSynthesisPrompt, streamModelResponse as libStreamModelResponse, validateSynthesisContext } from '@/lib/openrouter';
 import { StreamEvent, ReasoningParams, Message } from '@/types';
 import { getApiKeyFromCookie } from '@/app/api/key/route';
-import { MAX_REQUEST_BODY_SIZE, REQUEST_TIMEOUT_MS } from '@/lib/constants';
+import { MAX_REQUEST_BODY_SIZE, MAX_SYNTHESIS_CHARS, REQUEST_TIMEOUT_MS } from '@/lib/constants';
 import { logger, generateRequestId } from '@/lib/logger';
 import { handleOpenRouterError } from '@/lib/errors';
 import { checkRateLimit } from '@/lib/rateLimit';
 import { acquireLock, releaseLock } from '@/lib/sessionLock';
+import { countWords } from '@/lib/textUtils';
 
 export const runtime = 'edge';
 
@@ -28,6 +29,37 @@ function sendEvent(controller: ReadableStreamDefaultController, event: StreamEve
     controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`));
 }
 
+function injectTimestamp(
+    systemPrompt: string | undefined,
+    messages: Message[] | undefined
+): { systemPrompt: string; messages: Message[] } {
+    const currentDate = new Date().toUTCString();
+    const timeContext = `\nCurrent Date and Time (UTC): ${currentDate}`;
+    const timeContent = `Current Date and Time (UTC): ${currentDate}`;
+
+    const updatedSystemPrompt = systemPrompt
+        ? systemPrompt + timeContext
+        : timeContent;
+
+    let updatedMessages: Message[];
+    if (!messages) {
+        updatedMessages = [{ role: 'system', content: timeContent }];
+    } else {
+        updatedMessages = [...messages];
+        const systemIndex = updatedMessages.findIndex(m => m.role === 'system');
+        if (systemIndex >= 0) {
+            updatedMessages[systemIndex] = {
+                ...updatedMessages[systemIndex],
+                content: updatedMessages[systemIndex].content + timeContext,
+            };
+        } else {
+            updatedMessages.unshift({ role: 'system', content: timeContent });
+        }
+    }
+
+    return { systemPrompt: updatedSystemPrompt, messages: updatedMessages };
+}
+
 async function generateSingleModelResponse(
     model: string,
     prompt: string,
@@ -41,12 +73,10 @@ async function generateSingleModelResponse(
     let fullContent = '';
     let finalUsage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | undefined;
 
-    // Prepare messages for debug event (mimic what happens in valid streamModelResponse)
     const debugMessages: Message[] = messages && messages.length > 0
         ? messages
         : [{ role: 'user', content: prompt }];
 
-    // Send debug event with the prompt data
     sendEvent(controller, {
         type: 'debug_prompt',
         modelId: model,
@@ -73,7 +103,7 @@ async function generateSingleModelResponse(
             onReasoning: (text) => {
                 sendEvent(controller, { type: 'model_reasoning', modelId: model, reasoning: text });
             },
-            onComplete: (content, usage) => {
+            onComplete: (_content, usage) => {
                 finalUsage = usage;
             },
             onError: (error) => {
@@ -82,7 +112,7 @@ async function generateSingleModelResponse(
             signal
         });
 
-        const wordCount = fullContent.split(/\s+/).filter(Boolean).length;
+        const wordCount = countWords(fullContent);
         sendEvent(controller, {
             type: 'model_complete',
             modelId: model,
@@ -105,7 +135,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     logger.info('Generation request started', { requestId });
 
     try {
-        // Check request body size (legitimate server protection)
+        // Check request body size
         const contentLength = request.headers.get('content-length');
         if (contentLength && parseInt(contentLength, 10) > MAX_REQUEST_BODY_SIZE) {
             return Response.json(
@@ -116,32 +146,12 @@ export async function POST(request: NextRequest): Promise<Response> {
 
         const body = await request.json();
         const { prompt, models, refinementModel, reasoning: globalReasoning, modelConfigs, maxSynthesisChars, contextWarningThreshold, sessionId } = body;
-        let { messages, systemPrompt } = body;
 
-        // Inject Current Date and Time
-        const currentDate = new Date().toUTCString();
-        const timeContext = `\nCurrent Date and Time (UTC): ${currentDate}`;
+        // Inject current date/time into both systemPrompt and messages
+        const injected = injectTimestamp(body.systemPrompt, body.messages);
+        const systemPrompt = injected.systemPrompt;
+        const messages = injected.messages;
 
-        // 1. Update systemPrompt for synthesis
-        if (systemPrompt) {
-            systemPrompt += timeContext;
-        } else {
-            systemPrompt = `Current Date and Time (UTC): ${currentDate}`;
-        }
-
-        // 2. Update messages for individual models
-        if (!messages) {
-            messages = [{ role: 'system', content: `Current Date and Time (UTC): ${currentDate}` }];
-        } else {
-            const systemIndex = messages.findIndex((m: Message) => m.role === 'system');
-            if (systemIndex >= 0) {
-                messages[systemIndex].content += timeContext;
-            } else {
-                messages.unshift({ role: 'system', content: `Current Date and Time (UTC): ${currentDate}` });
-            }
-        }
-
-        // Defaults if not provided (should be provided by frontend but good for safety)
         const effectiveMaxSynthesisChars = maxSynthesisChars || MAX_SYNTHESIS_CHARS;
         const effectiveWarningThreshold = contextWarningThreshold || 0.8;
 
@@ -171,9 +181,7 @@ export async function POST(request: NextRequest): Promise<Response> {
             return Response.json({ error: modelsValidation.error }, { status: 400 });
         }
 
-        // 3. Rate Limiting (by API Key)
-        // We use the apiKey as the identifier since it's unique per user (usually)
-        // If we wanted to limit by IP, we'd need to trust headers or use a different method
+        // Rate Limiting (by API Key)
         const rateLimitResult = await checkRateLimit(apiKeyValidation.sanitized!);
         if (!rateLimitResult.success) {
             logger.warn('Rate limit exceeded', { requestId, apiKey: apiKeyValidation.sanitized!.substring(0, 10) + '...' });
@@ -183,7 +191,7 @@ export async function POST(request: NextRequest): Promise<Response> {
             );
         }
 
-        // 4. Session Locking
+        // Session Locking
         if (sessionId) {
             const locked = await acquireLock(sessionId);
             if (!locked) {
@@ -216,9 +224,6 @@ export async function POST(request: NextRequest): Promise<Response> {
                 try {
                     // Fetch responses from all models in parallel
                     const modelPromises = models.map((model: string) => {
-                        // Resolve reasoning config for this model
-                        // Priority: model-specific config > global reasoning param (legacy)
-                        // Note: modelConfigs key might be model ID
                         const config = modelConfigs?.[model]?.reasoning;
 
                         let shouldReason = false;
@@ -228,16 +233,9 @@ export async function POST(request: NextRequest): Promise<Response> {
                             shouldReason = true;
                             effort = config.effort;
                         } else if (globalReasoning) {
-                            // Fallback to legacy global param if provided (though frontend should use modelConfigs now)
                             shouldReason = true;
                             effort = globalReasoning.effort;
                         }
-
-                        // Some models are thinking models by default (:thinking suffix)
-                        // For these, we might want to default includeReasoning to true if not explicitly disabled?
-                        // But for now let's stick to explicit configuration or "Enable Reasoning" toggle.
-                        // Actually, if it is a thinking model, we probably want to see the reasoning.
-                        // But let's rely on the config passed from UI which does the logic of "forced" or default.
 
                         const reasoningParams = shouldReason ? { effort } : undefined;
 
@@ -247,7 +245,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                             messages,
                             apiKeyValidation.sanitized!,
                             reasoningParams,
-                            shouldReason, // includeReasoning
+                            shouldReason,
                             controller,
                             abortController.signal
                         );
@@ -263,7 +261,6 @@ export async function POST(request: NextRequest): Promise<Response> {
                             type: 'error',
                             error: 'All models failed to generate responses'
                         });
-                        controller.close();
                         return;
                     }
 
@@ -357,31 +354,18 @@ export async function POST(request: NextRequest): Promise<Response> {
                     }
 
                     sendEvent(controller, { type: 'complete' });
-
-                    // Release session lock on success
-                    if (sessionId) {
-                        await releaseLock(sessionId);
-                    }
-
-                    controller.close();
                 } catch (error) {
                     const errorMessage = handleOpenRouterError(error);
                     sendEvent(controller, { type: 'error', error: errorMessage });
-
-                    // Release session lock on error
+                } finally {
                     if (sessionId) {
                         await releaseLock(sessionId);
                     }
-
                     controller.close();
                 }
             },
-            async cancel() {
+            cancel() {
                 abortController.abort();
-                // Release session lock on cancel
-                if (sessionId) {
-                    await releaseLock(sessionId);
-                }
             },
         });
 

@@ -1,6 +1,7 @@
 'use client';
 
-import { MAX_SYNTHESIS_CHARS, estimateTokens } from '@/lib/openrouter';
+import { MAX_SYNTHESIS_CHARS, API_ROUTES } from '@/lib/constants';
+import { estimateTokens } from '@/lib/openrouter';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
@@ -368,7 +369,7 @@ export default function Home() {
     const messages = buildChatMessages(settings.systemPrompt, currentHistory, newPrompt);
 
     try {
-      const response = await apiFetch('/api/generate', {
+      const response = await apiFetch(API_ROUTES.GENERATE, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -548,31 +549,11 @@ export default function Home() {
 
           {/* Notifications / Errors */}
           {removedModelsWarning && (
-            <div
-              className="prompt-warning"
-              style={{
-                marginBottom: '1.5rem',
-                background: 'rgba(255, 100, 50, 0.1)',
-                borderColor: 'rgba(255, 100, 50, 0.5)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                gap: '1rem'
-              }}
-            >
+            <div className="prompt-warning warning-error">
               <span>⚠️ {removedModelsWarning}</span>
               <button
                 onClick={dismissRemovedModelsWarning}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '1rem',
-                  color: 'inherit',
-                  opacity: 0.7,
-                  padding: '0 0.25rem',
-                  lineHeight: 1
-                }}
+                className="warning-dismiss"
                 aria-label="Dismiss notification"
               >
                 ×
@@ -581,18 +562,13 @@ export default function Home() {
           )}
 
           {error && (
-            <div className="prompt-warning" style={{ marginBottom: '1.5rem' }}>
+            <div className="prompt-warning warning-default">
               {error}
             </div>
           )}
 
           {warnings.length > 0 && (
-            <div className="prompt-warning" style={{
-              marginBottom: '1.5rem',
-              background: 'rgba(234, 179, 8, 0.1)',
-              borderColor: 'rgba(234, 179, 8, 0.2)',
-              color: '#fbbf24'
-            }}>
+            <div className="prompt-warning warning-caution">
               {warnings.map((warning, index) => (
                 <div key={index} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                   <span>⚠️</span>
@@ -603,7 +579,7 @@ export default function Home() {
           )}
 
           {storageWarning && (
-            <div className="prompt-warning" style={{ marginBottom: '1.5rem', background: 'rgba(255, 170, 0, 0.1)', borderColor: 'rgba(255, 170, 0, 0.5)' }}>
+            <div className="prompt-warning warning-info">
               ⚠️ {storageWarning}
             </div>
           )}

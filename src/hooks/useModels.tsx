@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Model, FALLBACK_MODELS, validateSelectedModels } from '@/types';
-import { MODELS_CACHE_TTL, MAX_RETRIES } from '@/lib/constants';
+import { MODELS_CACHE_TTL, MAX_RETRIES, API_ROUTES } from '@/lib/constants';
 import { exponentialBackoff } from '@/lib/retry';
 import { getLocalStorageJSON, removeLocalStorageItem, setLocalStorageJSON } from '@/lib/storage';
 import { apiFetch } from '@/lib/apiClient';
@@ -206,7 +206,7 @@ export function useModels() {
 
         for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
             try {
-                const response = await apiFetch('/api/models');
+                const response = await apiFetch(API_ROUTES.MODELS);
                 if (!response.ok) throw new Error('Failed to fetch models');
 
                 const data = await response.json();

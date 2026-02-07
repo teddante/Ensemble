@@ -57,15 +57,8 @@ export function ConfirmModal({
             ariaDescribedBy="confirm-message"
         >
                 <div className="modal-header" style={{ justifyContent: 'center', borderBottom: 'none' }}>
-                    <div style={{
-                        width: '48px',
-                        height: '48px',
-                        borderRadius: '50%',
+                    <div className="confirm-icon-container" style={{
                         backgroundColor: `${getVariantColor()}20`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto 1rem',
                     }}>
                         <AlertTriangle size={24} style={{ color: getVariantColor() }} />
                     </div>

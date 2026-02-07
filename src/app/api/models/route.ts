@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OpenRouter } from '@openrouter/sdk';
 import { handleOpenRouterError } from '@/lib/errors';
-import { invalidRequestResponse, validateCSRF } from '@/lib/apiSecurity';
+import { withCSRF } from '@/lib/apiSecurity';
 
 export const runtime = 'edge';
 
-export async function GET(request: NextRequest) {
-    // CSRF protection
-    if (!validateCSRF(request)) {
-        return invalidRequestResponse();
-    }
-
+export const GET = withCSRF(async (_request: NextRequest) => {
     try {
         // Use server key if available, otherwise try user's cookie key
         let apiKey = process.env.OPENROUTER_API_KEY;
@@ -31,17 +26,13 @@ export async function GET(request: NextRequest) {
         const data = response.data;
 
         // Transform to our internal Model interface
-        // Note: OpenRouter SDK uses camelCase (e.g., supportedParameters, contextLength)
-        // but raw API responses use snake_case. The SDK normalizes to camelCase.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const models = data.map((m: any) => ({
             id: m.id,
             name: m.name,
             provider: m.id.split('/')[0],
             description: m.description || '',
-            // SDK uses camelCase: contextLength, supportedParameters, topProvider, perRequestLimits
             contextWindow: m.contextLength || m.context_length,
-            // Extended fields - handle both SDK camelCase and raw API snake_case
             canonical_slug: m.canonicalSlug || m.canonical_slug,
             created: m.created,
             supported_parameters: m.supportedParameters || m.supported_parameters,
@@ -59,5 +50,4 @@ export async function GET(request: NextRequest) {
             { status: 500 }
         );
     }
-}
-
+});

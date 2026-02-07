@@ -116,3 +116,23 @@ export function getModelName(modelId: string, models: Model[]): string {
     const model = models.find(m => m.id === modelId);
     return model?.name || modelId.split('/').pop() || modelId;
 }
+
+const KNOWN_REASONING_PATTERNS = [
+    'o1', 'o3',
+    'deepseek-r1', 'deepseek/deepseek-r1',
+    'qwq',
+];
+
+/**
+ * Determines if a model supports reasoning/thinking capabilities.
+ */
+export function isReasoningModel(model: Model): boolean {
+    const isThinking = model.id.endsWith(':thinking') || model.id.includes('-thinking');
+    const hasReasoningParam = model.supported_parameters?.includes('reasoning')
+        || model.supported_parameters?.includes('include_reasoning');
+    const isKnownReasoningModel = KNOWN_REASONING_PATTERNS.some(pattern =>
+        model.id.toLowerCase().includes(pattern)
+    );
+
+    return isThinking || hasReasoningParam || isKnownReasoningModel;
+}
