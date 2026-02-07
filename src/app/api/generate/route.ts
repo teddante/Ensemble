@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
-import { OpenRouter } from '@openrouter/sdk';
 import { validatePrompt, validateApiKey, validateModels } from '@/lib/validation';
-import { createSynthesisPrompt, streamModelResponse as libStreamModelResponse, validateSynthesisContext } from '@/lib/openrouter';
+import { createOpenRouterClient, createSynthesisPrompt, streamModelResponse as libStreamModelResponse, validateSynthesisContext } from '@/lib/openrouter';
 import { StreamEvent, ReasoningParams, Message } from '@/types';
 import { getApiKeyFromCookie } from '@/app/api/key/route';
 import { MAX_REQUEST_BODY_SIZE, MAX_SYNTHESIS_CHARS, REQUEST_TIMEOUT_MS } from '@/lib/constants';
@@ -10,6 +9,7 @@ import { handleOpenRouterError } from '@/lib/errors';
 import { checkRateLimit } from '@/lib/rateLimit';
 import { acquireLock, releaseLock } from '@/lib/sessionLock';
 import { countWords } from '@/lib/textUtils';
+import { errorResponse } from '@/lib/apiSecurity';
 
 export const runtime = 'edge';
 
@@ -33,12 +33,10 @@ function injectTimestamp(
     systemPrompt: string | undefined,
     messages: Message[] | undefined
 ): { systemPrompt: string; messages: Message[] } {
-    const currentDate = new Date().toUTCString();
-    const timeContext = `\nCurrent Date and Time (UTC): ${currentDate}`;
-    const timeContent = `Current Date and Time (UTC): ${currentDate}`;
+    const timeContent = `Current Date and Time (UTC): ${new Date().toUTCString()}`;
 
     const updatedSystemPrompt = systemPrompt
-        ? systemPrompt + timeContext
+        ? `${systemPrompt}\n${timeContent}`
         : timeContent;
 
     let updatedMessages: Message[];
@@ -50,7 +48,7 @@ function injectTimestamp(
         if (systemIndex >= 0) {
             updatedMessages[systemIndex] = {
                 ...updatedMessages[systemIndex],
-                content: updatedMessages[systemIndex].content + timeContext,
+                content: `${updatedMessages[systemIndex].content}\n${timeContent}`,
             };
         } else {
             updatedMessages.unshift({ role: 'system', content: timeContent });
@@ -80,10 +78,7 @@ async function generateSingleModelResponse(
     sendEvent(controller, {
         type: 'debug_prompt',
         modelId: model,
-        promptData: {
-            modelId: model,
-            messages: debugMessages
-        }
+        promptData: { modelId: model, messages: debugMessages }
     });
 
     sendEvent(controller, { type: 'model_start', modelId: model });
@@ -138,10 +133,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         // Check request body size
         const contentLength = request.headers.get('content-length');
         if (contentLength && parseInt(contentLength, 10) > MAX_REQUEST_BODY_SIZE) {
-            return Response.json(
-                { error: 'Request body too large' },
-                { status: 413 }
-            );
+            return errorResponse('Request body too large', 413);
         }
 
         const body = await request.json();
@@ -159,35 +151,33 @@ export async function POST(request: NextRequest): Promise<Response> {
         const apiKey: string | null = await getApiKeyFromCookie();
 
         if (!apiKey) {
-            return Response.json(
-                { error: 'API key not configured. Please set your API key in Settings.' },
-                { status: 401 }
-            );
+            return errorResponse('API key not configured. Please set your API key in Settings.', 401);
         }
 
         // Validate inputs
         const promptValidation = validatePrompt(prompt);
         if (!promptValidation.isValid) {
-            return Response.json({ error: promptValidation.error }, { status: 400 });
+            return errorResponse(promptValidation.error!, 400);
         }
 
         const apiKeyValidation = validateApiKey(apiKey || '');
         if (!apiKeyValidation.isValid) {
-            return Response.json({ error: apiKeyValidation.error }, { status: 401 });
+            return errorResponse(apiKeyValidation.error!, 401);
         }
 
         const modelsValidation = validateModels(models);
         if (!modelsValidation.isValid) {
-            return Response.json({ error: modelsValidation.error }, { status: 400 });
+            return errorResponse(modelsValidation.error!, 400);
         }
 
         // Rate Limiting (by API Key)
         const rateLimitResult = await checkRateLimit(apiKeyValidation.sanitized!);
         if (!rateLimitResult.success) {
             logger.warn('Rate limit exceeded', { requestId, apiKey: apiKeyValidation.sanitized!.substring(0, 10) + '...' });
-            return Response.json(
-                { error: 'Rate limit exceeded. Please try again later.' },
-                { status: 429, headers: { 'Retry-After': String(Math.ceil((rateLimitResult.reset - Date.now()) / 1000)) } }
+            return errorResponse(
+                'Rate limit exceeded. Please try again later.',
+                429,
+                { 'Retry-After': String(Math.ceil((rateLimitResult.reset - Date.now()) / 1000)) }
             );
         }
 
@@ -196,24 +186,11 @@ export async function POST(request: NextRequest): Promise<Response> {
             const locked = await acquireLock(sessionId);
             if (!locked) {
                 logger.warn('Session locked', { requestId, sessionId });
-                return Response.json(
-                    { error: 'A request is already in progress for this session. Please wait for it to complete.' },
-                    { status: 409 }
-                );
+                return errorResponse('A request is already in progress for this session. Please wait for it to complete.', 409);
             }
         }
 
-        // Get referer from request or use default
-        const referer = request.headers.get('referer') ||
-            request.headers.get('origin') ||
-            process.env.NEXT_PUBLIC_APP_URL ||
-            'https://ensemble.app';
-
-        const client = new OpenRouter({
-            apiKey: apiKeyValidation.sanitized!,
-            httpReferer: referer,
-            xTitle: 'Ensemble Multi-LLM',
-        });
+        const client = createOpenRouterClient(apiKeyValidation.sanitized!);
 
         // Create abort controller for cleanup
         const abortController = new AbortController();
@@ -257,10 +234,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                     const successfulResponses = results.filter((r: { success: boolean; content: string }) => r.success && r.content);
 
                     if (successfulResponses.length === 0) {
-                        sendEvent(controller, {
-                            type: 'error',
-                            error: 'All models failed to generate responses'
-                        });
+                        sendEvent(controller, { type: 'error', error: 'All models failed to generate responses' });
                         return;
                     }
 
@@ -283,10 +257,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                                 warning: contextValidation.warning,
                                 estimatedTokens: contextValidation.estimatedTokens
                             });
-                            sendEvent(controller, {
-                                type: 'warning',
-                                warning: contextValidation.warning
-                            });
+                            sendEvent(controller, { type: 'warning', warning: contextValidation.warning });
                         }
 
                         const synthesisPrompt = createSynthesisPrompt(
@@ -296,10 +267,9 @@ export async function POST(request: NextRequest): Promise<Response> {
                         );
 
                         // Create timeout signal for synthesis
-                        const synthesisTimeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
                         const synthesisSignal = AbortSignal.any([
                             abortController.signal,
-                            synthesisTimeoutSignal
+                            AbortSignal.timeout(REQUEST_TIMEOUT_MS)
                         ]);
 
                         const synthesisMessages: Message[] = [];
@@ -312,10 +282,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                         sendEvent(controller, {
                             type: 'debug_prompt',
                             modelId: synthesisModel,
-                            promptData: {
-                                modelId: synthesisModel,
-                                messages: synthesisMessages
-                            }
+                            promptData: { modelId: synthesisModel, messages: synthesisMessages }
                         });
 
                         let synthesizedContent = '';
@@ -344,19 +311,14 @@ export async function POST(request: NextRequest): Promise<Response> {
                             }
                         }
 
-                        sendEvent(controller, {
-                            type: 'synthesis_complete',
-                            content: synthesizedContent
-                        });
+                        sendEvent(controller, { type: 'synthesis_complete', content: synthesizedContent });
                     } catch (error) {
-                        const errorMessage = handleOpenRouterError(error);
-                        sendEvent(controller, { type: 'error', error: errorMessage });
+                        sendEvent(controller, { type: 'error', error: handleOpenRouterError(error) });
                     }
 
                     sendEvent(controller, { type: 'complete' });
                 } catch (error) {
-                    const errorMessage = handleOpenRouterError(error);
-                    sendEvent(controller, { type: 'error', error: errorMessage });
+                    sendEvent(controller, { type: 'error', error: handleOpenRouterError(error) });
                 } finally {
                     if (sessionId) {
                         await releaseLock(sessionId);
@@ -372,9 +334,6 @@ export async function POST(request: NextRequest): Promise<Response> {
         return createSSEResponse(stream);
     } catch (error) {
         console.error('Generation error:', error);
-        return Response.json(
-            { error: handleOpenRouterError(error) },
-            { status: 500 }
-        );
+        return errorResponse(handleOpenRouterError(error), 500);
     }
 }

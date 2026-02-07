@@ -1,8 +1,9 @@
 'use client';
 
-import { Copy, Check, Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles, Loader2 } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
+import { CopyButton } from './CopyButton';
+import { ICON_SIZE } from '@/lib/constants';
 
 interface SynthesizedResponseProps {
     content: string;
@@ -12,8 +13,6 @@ interface SynthesizedResponseProps {
 }
 
 export function SynthesizedResponse({ content, isStreaming, isGenerating, truncatedModels = [] }: SynthesizedResponseProps) {
-    const { copied, copy } = useCopyToClipboard();
-
     if (!content && !isGenerating) {
         return null;
     }
@@ -22,33 +21,17 @@ export function SynthesizedResponse({ content, isStreaming, isGenerating, trunca
         <div className="synthesized-response">
             <div className="synthesized-header">
                 <div className="synthesized-title">
-                    <Sparkles size={20} className="sparkle-icon" />
+                    <Sparkles size={ICON_SIZE.lg} className="sparkle-icon" />
                     <h3>Synthesized Response</h3>
                     {isStreaming && (
                         <span className="streaming-badge">
-                            <Loader2 size={14} className="spin" />
+                            <Loader2 size={ICON_SIZE.sm} className="spin" />
                             Synthesizing...
                         </span>
                     )}
                 </div>
                 {content && !isStreaming && (
-                    <button
-                        className="copy-button"
-                        onClick={() => copy(content)}
-                        aria-label={copied ? 'Copied!' : 'Copy to clipboard'}
-                    >
-                        {copied ? (
-                            <>
-                                <Check size={16} />
-                                <span>Copied!</span>
-                            </>
-                        ) : (
-                            <>
-                                <Copy size={16} />
-                                <span>Copy</span>
-                            </>
-                        )}
-                    </button>
+                    <CopyButton content={content} label="Copy" />
                 )}
             </div>
 
@@ -73,7 +56,7 @@ export function SynthesizedResponse({ content, isStreaming, isGenerating, trunca
                     <MarkdownRenderer content={content} />
                 ) : isGenerating ? (
                     <div className="synthesized-placeholder">
-                        <Loader2 size={24} className="spin" />
+                        <Loader2 size={ICON_SIZE.xl} className="spin" />
                         <span>Waiting for model responses...</span>
                     </div>
                 ) : null}

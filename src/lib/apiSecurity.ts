@@ -7,11 +7,8 @@ function validateCSRF(request: NextRequest): boolean {
     return header === 'XMLHttpRequest' || header === 'fetch';
 }
 
-function invalidRequestResponse(): NextResponse {
-    return NextResponse.json(
-        { error: 'Invalid request' },
-        { status: 403 }
-    );
+export function errorResponse(message: string, status: number, headers?: Record<string, string>): NextResponse {
+    return NextResponse.json({ error: message }, { status, headers });
 }
 
 /**
@@ -22,7 +19,7 @@ export function withCSRF<T>(
 ): (request: NextRequest) => Promise<T | NextResponse> {
     return async (request: NextRequest) => {
         if (!validateCSRF(request)) {
-            return invalidRequestResponse();
+            return errorResponse('Invalid request', 403);
         }
         return handler(request);
     };

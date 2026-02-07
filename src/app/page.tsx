@@ -14,7 +14,7 @@ import { ChatMessage } from '@/components/ChatMessage';
 import { PromptInspector } from '@/components/PromptInspector';
 import { useModels } from '@/hooks/useModels';
 import { useSettings } from '@/hooks/useSettings';
-import { ModelResponse, StreamEvent, Message } from '@/types';
+import { ModelResponse, StreamEvent, Message, validateSelectedModels } from '@/types';
 import { apiFetch, getErrorMessage } from '@/lib/apiClient';
 
 import { useHistory, HistoryItem } from '@/hooks/useHistory';
@@ -29,7 +29,6 @@ export default function Home() {
     isValidating,
     setIsValidating,
     removedModelsWarning,
-    validateUserSelectedModels,
     dismissRemovedModelsWarning,
     setRemovedSelectedModels,
     validationDoneRef
@@ -290,15 +289,12 @@ export default function Home() {
     if (!isLoadingModels && models.length > 0 && !validationDoneRef.current && settings.selectedModels.length > 0) {
       setIsValidating(true);
 
-      const { validModels, removedModels } = validateUserSelectedModels(
-        settings.selectedModels,
-        models
-      );
+      const { validModels, invalidModels } = validateSelectedModels(settings.selectedModels, models);
 
       // If models were removed, update settings and show notification
-      if (removedModels.length > 0) {
-        console.warn('[Ensemble] Invalid user-selected models removed:', removedModels.map(r => r.modelId).join(', '));
-        setRemovedSelectedModels(removedModels);
+      if (invalidModels.length > 0) {
+        console.warn('[Ensemble] Invalid user-selected models removed:', invalidModels.join(', '));
+        setRemovedSelectedModels(invalidModels.map(modelId => ({ modelId, reason: 'unavailable' as const })));
 
         // Update settings with only valid models
         if (validModels.length > 0) {
@@ -309,7 +305,7 @@ export default function Home() {
       validationDoneRef.current = true;
       setIsValidating(false);
     }
-  }, [isLoadingModels, models, settings.selectedModels, validateUserSelectedModels, updateSelectedModels, setRemovedSelectedModels, setIsValidating, validationDoneRef]);
+  }, [isLoadingModels, models, settings.selectedModels, updateSelectedModels, setRemovedSelectedModels, setIsValidating, validationDoneRef]);
 
   const handleGenerate = useCallback(async (newPrompt: string) => {
     if (!hasApiKey) {

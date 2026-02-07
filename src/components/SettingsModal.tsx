@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { X, Eye, EyeOff, ExternalLink, Loader2 } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
 import { Model } from '@/types';
-import { API_KEY_MASK } from '@/lib/constants';
+import { API_KEY_MASK, ICON_SIZE } from '@/lib/constants';
 import { isReasoningModel } from '@/lib/modelUtils';
 import { BaseModal } from './BaseModal';
 
@@ -61,7 +61,7 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                 <div className="modal-header">
                     <h2>Settings</h2>
                     <button className="modal-close" onClick={onClose} aria-label="Close" disabled={isSaving}>
-                        <X size={20} />
+                        <X size={ICON_SIZE.lg} />
                     </button>
                 </div>
 
@@ -102,7 +102,7 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                                 rel="noopener noreferrer"
                                 className="external-link"
                             >
-                                OpenRouter <ExternalLink size={14} />
+                                OpenRouter <ExternalLink size={ICON_SIZE.sm} />
                             </a>
                         </p>
                     </div>
@@ -229,7 +229,7 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                             type="number"
                             value={settings.maxSynthesisChars}
                             onChange={(e) => updateSettings({ maxSynthesisChars: parseInt(e.target.value) || 0 })}
-                            className="api-key-input" // Reuse style
+                            className="api-key-input"
                             style={{ width: '100%' }}
                             disabled={isSaving}
                             min={100}
@@ -266,7 +266,7 @@ export function SettingsModal({ isOpen, onClose, models }: SettingsModalProps) {
                     <button className="button-primary" onClick={handleSave} disabled={isSaving}>
                         {isSaving ? (
                             <>
-                                <Loader2 size={16} className="spin" />
+                                <Loader2 size={ICON_SIZE.md} className="spin" />
                                 Saving...
                             </>
                         ) : (

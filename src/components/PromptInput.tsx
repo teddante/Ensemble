@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, X } from 'lucide-react';
+import { ICON_SIZE } from '@/lib/constants';
 
 interface PromptInputProps {
     onSubmit: (prompt: string) => void;
@@ -106,7 +107,7 @@ export function PromptInput({ onSubmit, onCancel, isLoading, disabled, initialVa
                             onClick={handleCancel}
                             aria-label="Cancel generation"
                         >
-                            <X size={20} />
+                            <X size={ICON_SIZE.lg} />
                             <span>Cancel</span>
                         </button>
                     ) : (
@@ -116,7 +117,7 @@ export function PromptInput({ onSubmit, onCancel, isLoading, disabled, initialVa
                             disabled={isDisabled}
                             aria-label="Generate response"
                         >
-                            <Send size={20} />
+                            <Send size={ICON_SIZE.lg} />
                             <span>Generate</span>
                         </button>
                     )}

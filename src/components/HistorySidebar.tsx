@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Trash2, X, Clock } from 'lucide-react';
 import { HistoryItem } from '@/hooks/useHistory';
 import { ConfirmModal } from './ConfirmModal';
+import { EmptyState } from './EmptyState';
+import { ICON_SIZE } from '@/lib/constants';
 
 interface HistorySidebarProps {
     isOpen: boolean;
@@ -47,20 +49,17 @@ export function HistorySidebar({ isOpen, onClose, history, onLoad, onDelete, onC
             <div className={`history-sidebar ${isOpen ? 'open' : ''}`}>
                 <div className="history-header">
                     <div className="history-title">
-                        <Clock size={20} />
+                        <Clock size={ICON_SIZE.lg} />
                         <h3>History</h3>
                     </div>
                     <button className="history-close" onClick={onClose} aria-label="Close history">
-                        <X size={20} />
+                        <X size={ICON_SIZE.lg} />
                     </button>
                 </div>
 
                 <div className="history-list">
                     {history.length === 0 ? (
-                        <div className="history-empty">
-                            <Clock size={40} />
-                            <p>No history yet</p>
-                        </div>
+                        <EmptyState icon={<Clock size={40} />} message="No history yet" />
                     ) : (
                         history.map((item) => (
                             <div key={item.id} className="history-item">
@@ -81,7 +80,7 @@ export function HistorySidebar({ isOpen, onClose, history, onLoad, onDelete, onC
                                     }}
                                     aria-label="Delete item"
                                 >
-                                    <Trash2 size={16} />
+                                    <Trash2 size={ICON_SIZE.md} />
                                 </button>
                             </div>
                         ))
@@ -124,4 +123,3 @@ export function HistorySidebar({ isOpen, onClose, history, onLoad, onDelete, onC
         </>
     );
 }
-

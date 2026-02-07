@@ -2,6 +2,7 @@
 
 import { Settings, Clock, PlusCircle } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
+import { ICON_SIZE } from '@/lib/constants';
 
 interface HeaderProps {
     onOpenSettings: () => void;
@@ -46,7 +47,7 @@ export function Header({ onOpenSettings, onOpenHistory, onNewChat }: HeaderProps
                         aria-label="New Chat"
                         style={{ borderColor: 'var(--color-accent-primary)', color: 'var(--color-accent-secondary)', background: 'rgba(139, 92, 246, 0.1)' }}
                     >
-                        <PlusCircle size={20} />
+                        <PlusCircle size={ICON_SIZE.lg} />
                         <span>New Chat</span>
                     </button>
                     {!hasApiKey && (
@@ -59,7 +60,7 @@ export function Header({ onOpenSettings, onOpenHistory, onNewChat }: HeaderProps
                         onClick={onOpenHistory}
                         aria-label="Open history"
                     >
-                        <Clock size={20} />
+                        <Clock size={ICON_SIZE.lg} />
                         <span>History</span>
                     </button>
                     <button
@@ -67,7 +68,7 @@ export function Header({ onOpenSettings, onOpenHistory, onNewChat }: HeaderProps
                         onClick={onOpenSettings}
                         aria-label="Open settings"
                     >
-                        <Settings size={20} />
+                        <Settings size={ICON_SIZE.lg} />
                         <span>Settings</span>
                     </button>
                 </div>
@@ -75,4 +76,3 @@ export function Header({ onOpenSettings, onOpenHistory, onNewChat }: HeaderProps
         </header>
     );
 }
-

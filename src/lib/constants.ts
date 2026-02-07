@@ -23,6 +23,14 @@ export const ACTIVITY_TIMEOUT_MS = 30000; // 30s inactivity timeout - resets on 
 // Encryption
 export const ENCRYPTION_MAGIC_PREFIX = 'ENS:';
 
+// Icon Sizes
+export const ICON_SIZE = {
+    sm: 14,
+    md: 16,
+    lg: 20,
+    xl: 24,
+} as const;
+
 // API Routes
 export const API_ROUTES = {
     KEY: '/api/key',

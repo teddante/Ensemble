@@ -3,6 +3,7 @@
 import { AlertTriangle } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { BaseModal } from './BaseModal';
+import { ICON_SIZE } from '@/lib/constants';
 
 interface ConfirmModalProps {
     isOpen: boolean;
@@ -60,7 +61,7 @@ export function ConfirmModal({
                     <div className="confirm-icon-container" style={{
                         backgroundColor: `${getVariantColor()}20`,
                     }}>
-                        <AlertTriangle size={24} style={{ color: getVariantColor() }} />
+                        <AlertTriangle size={ICON_SIZE.xl} style={{ color: getVariantColor() }} />
                     </div>
                     <h2 id="confirm-title" style={{ width: '100%', marginBottom: '0.5rem' }}>{title}</h2>
                 </div>

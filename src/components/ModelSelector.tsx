@@ -5,6 +5,7 @@ import { Check, Search, ChevronDown, ChevronRight, X, Zap, Wrench, Eye, Brain, B
 import { useSettings } from '@/hooks/useSettings';
 import { Model } from '@/types';
 import { formatContextLength, formatPricing, getModelCapabilities, isFreeModel } from '@/lib/modelUtils';
+import { ICON_SIZE } from '@/lib/constants';
 
 interface ModelSelectorProps {
     models: Model[];
@@ -139,7 +140,7 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
                                         onClick={() => toggleModel(model.id)}
                                         aria-label={`Remove ${model.name}`}
                                     >
-                                        <X size={14} />
+                                        <X size={ICON_SIZE.sm} />
                                     </button>
                                 )}
                             </div>
@@ -173,7 +174,7 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
                         </div>
 
                         <div className="model-search">
-                            <Search size={14} className="search-icon" />
+                            <Search size={ICON_SIZE.sm} className="search-icon" />
                             <input
                                 type="text"
                                 placeholder="Search models..."
@@ -215,7 +216,7 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
                                         onClick={() => toggleProvider(provider)}
                                         aria-expanded={!isCollapsed}
                                     >
-                                        {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                                        {isCollapsed ? <ChevronRight size={ICON_SIZE.sm} /> : <ChevronDown size={ICON_SIZE.sm} />}
                                         <span className="provider-name">{provider}</span>
                                         <span className="provider-stats">
                                             {selectedInGroup > 0 && (

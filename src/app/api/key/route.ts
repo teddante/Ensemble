@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateApiKey } from '@/lib/validation';
 import { encrypt, decrypt } from '@/lib/crypto';
-import { withCSRF } from '@/lib/apiSecurity';
+import { withCSRF, errorResponse } from '@/lib/apiSecurity';
 
 export const runtime = 'edge';
 
@@ -21,7 +21,7 @@ export const POST = withCSRF(async (request: NextRequest) => {
 
         const validation = validateApiKey(apiKey);
         if (!validation.isValid) {
-            return NextResponse.json({ error: validation.error }, { status: 400 });
+            return errorResponse(validation.error!, 400);
         }
 
         const encryptedKey = await encrypt(validation.sanitized!);
@@ -38,10 +38,7 @@ export const POST = withCSRF(async (request: NextRequest) => {
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error('Failed to save API key:', error);
-        return NextResponse.json(
-            { error: 'Failed to save API key' },
-            { status: 500 }
-        );
+        return errorResponse('Failed to save API key', 500);
     }
 });
 

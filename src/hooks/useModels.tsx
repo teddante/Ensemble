@@ -167,24 +167,6 @@ export function useModels() {
     }, [removedSelectedModels]);
 
     /**
-     * Validate user-selected models against live models
-     * Returns list of removed models for UI feedback
-     */
-    const validateUserSelectedModels = useCallback((
-        selectedModels: string[],
-        liveModels: Model[]
-    ): { validModels: string[]; removedModels: RemovedModelInfo[] } => {
-        const { validModels, invalidModels } = validateSelectedModels(selectedModels, liveModels);
-
-        const removedModels: RemovedModelInfo[] = invalidModels.map(modelId => ({
-            modelId,
-            reason: 'unavailable' as const
-        }));
-
-        return { validModels, removedModels };
-    }, []);
-
-    /**
      * Clear the removed models notification
      */
     const dismissRemovedModelsWarning = useCallback(() => {
@@ -273,7 +255,6 @@ export function useModels() {
         removedSelectedModels,
         removedModelsWarning,
         setRemovedSelectedModels,
-        validateUserSelectedModels,
         dismissRemovedModelsWarning,
         resetValidationState,
         validationDoneRef,

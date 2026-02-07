@@ -4,12 +4,13 @@ import React, { memo } from 'react';
 import { ChevronDown, ChevronUp, CheckCircle, XCircle, Loader2, Info } from 'lucide-react';
 import { ModelResponse, Message } from '@/types';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { ICON_SIZE } from '@/lib/constants';
 
 const STATUS_CONFIG: Record<ModelResponse['status'], { icon: React.ReactNode; label: string }> = {
-    pending: { icon: <Loader2 size={16} className="spin status-pending" />, label: 'Waiting...' },
-    streaming: { icon: <Loader2 size={16} className="spin status-streaming" />, label: 'Streaming...' },
-    complete: { icon: <CheckCircle size={16} className="status-complete" />, label: 'Complete' },
-    error: { icon: <XCircle size={16} className="status-error" />, label: 'Error' },
+    pending: { icon: <Loader2 size={ICON_SIZE.md} className="spin status-pending" />, label: 'Waiting...' },
+    streaming: { icon: <Loader2 size={ICON_SIZE.md} className="spin status-streaming" />, label: 'Streaming...' },
+    complete: { icon: <CheckCircle size={ICON_SIZE.md} className="status-complete" />, label: 'Complete' },
+    error: { icon: <XCircle size={ICON_SIZE.md} className="status-error" />, label: 'Error' },
 };
 
 interface ResponseCardProps {
@@ -64,7 +65,7 @@ const ResponseCard = memo(function ResponseCard({
                             }}
                             title="Inspect Prompt"
                         >
-                            <Info size={16} />
+                            <Info size={ICON_SIZE.md} />
                         </div>
                     )}
                     {(response.status === 'complete' || response.status === 'error') && (

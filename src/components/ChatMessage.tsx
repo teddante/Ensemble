@@ -4,9 +4,10 @@ import { memo } from 'react';
 import { ModelResponse, Model, Message } from '@/types';
 import { SynthesizedResponse } from './SynthesizedResponse';
 import { ResponsePanel } from './ResponsePanel';
-import { User, Sparkles, Info, Copy, Check } from 'lucide-react';
+import { User, Sparkles, Info } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
+import { CopyButton } from './CopyButton';
+import { ICON_SIZE } from '@/lib/constants';
 
 interface ChatMessageProps {
     role: 'user' | 'assistant';
@@ -33,24 +34,18 @@ export const ChatMessage = memo(function ChatMessage({
     synthesisPromptData
 }: ChatMessageProps) {
 
-    const { copied, copy } = useCopyToClipboard();
-
     if (role === 'user') {
         return (
             <div className="chat-message user-message group">
-                <button
-                    onClick={() => copy(content)}
+                <CopyButton
+                    content={content}
                     className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-text-tertiary hover:text-text-primary self-start mt-1 mr-1"
-                    aria-label="Copy message"
-                    title="Copy message"
-                >
-                    {copied ? <Check size={16} /> : <Copy size={16} />}
-                </button>
+                />
                 <div className="message-content user-content">
                     <MarkdownRenderer content={content} forceNewlines={true} />
                 </div>
                 <div className="message-avatar user-avatar">
-                    <User size={20} />
+                    <User size={ICON_SIZE.lg} />
                 </div>
             </div>
         );
@@ -59,7 +54,7 @@ export const ChatMessage = memo(function ChatMessage({
     return (
         <div className="chat-message assistant-message">
             <div className="message-avatar assistant-avatar">
-                <Sparkles size={20} />
+                <Sparkles size={ICON_SIZE.lg} />
             </div>
             <div className="message-content assistant-content">
                 <div className="flex items-center gap-2 mb-1">
@@ -70,7 +65,7 @@ export const ChatMessage = memo(function ChatMessage({
                             className="text-text-tertiary hover:text-text-primary p-1 rounded hover:bg-surface-tertiary transition-colors"
                             title="Inspect Synthesis Prompt"
                         >
-                            <Info size={14} />
+                            <Info size={ICON_SIZE.sm} />
                         </button>
                     )}
                 </div>

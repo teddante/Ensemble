@@ -2,6 +2,7 @@ import { Message } from '@/types';
 import { X, Copy, Check, Download } from 'lucide-react';
 import { useCopyToClipboard, useCopyToClipboardMap } from '@/hooks/useCopyToClipboard';
 import { BaseModal } from './BaseModal';
+import { ICON_SIZE } from '@/lib/constants';
 
 interface PromptInspectorProps {
     isOpen: boolean;
@@ -56,7 +57,7 @@ export function PromptInspector({ isOpen, onClose, messages, modelId }: PromptIn
                             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary bg-surface-tertiary hover:bg-surface-elevated border border-border rounded-lg transition-colors"
                             title="Copy all messages"
                         >
-                            {copiedAll ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                            {copiedAll ? <Check size={ICON_SIZE.sm} className="text-green-500" /> : <Copy size={ICON_SIZE.sm} />}
                             Copy All
                         </button>
                         <button
@@ -64,7 +65,7 @@ export function PromptInspector({ isOpen, onClose, messages, modelId }: PromptIn
                             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary bg-surface-tertiary hover:bg-surface-elevated border border-border rounded-lg transition-colors"
                             title="Download as JSON"
                         >
-                            <Download size={14} />
+                            <Download size={ICON_SIZE.sm} />
                             JSON
                         </button>
                         <div className="w-px h-6 bg-border mx-1" />
@@ -73,7 +74,7 @@ export function PromptInspector({ isOpen, onClose, messages, modelId }: PromptIn
                             className="p-2 text-text-tertiary hover:text-text-primary hover:bg-surface-tertiary rounded-lg transition-colors"
                             aria-label="Close inspector"
                         >
-                            <X size={20} />
+                            <X size={ICON_SIZE.lg} />
                         </button>
                     </div>
                 </div>
@@ -93,7 +94,7 @@ export function PromptInspector({ isOpen, onClose, messages, modelId }: PromptIn
                                     className="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-surface-tertiary rounded transition-colors"
                                     title="Copy content"
                                 >
-                                    {isCopied(index) ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                                    {isCopied(index) ? <Check size={ICON_SIZE.sm} className="text-green-500" /> : <Copy size={ICON_SIZE.sm} />}
                                 </button>
                             </div>
                             <div className="text-sm font-mono whitespace-pre-wrap text-text-secondary leading-relaxed bg-surface-secondary/50 p-2 rounded">

@@ -1,23 +1,18 @@
+const isServer = typeof window === 'undefined';
+
 export function getLocalStorageJSON<T>(key: string, fallback: T): T {
-    if (typeof window === 'undefined') {
-        return fallback;
-    }
+    if (isServer) return fallback;
 
     try {
         const raw = localStorage.getItem(key);
-        if (!raw) {
-            return fallback;
-        }
-        return JSON.parse(raw) as T;
+        return raw ? JSON.parse(raw) as T : fallback;
     } catch {
         return fallback;
     }
 }
 
 export function setLocalStorageJSON<T>(key: string, value: T): boolean {
-    if (typeof window === 'undefined') {
-        return false;
-    }
+    if (isServer) return false;
 
     try {
         localStorage.setItem(key, JSON.stringify(value));
@@ -28,8 +23,6 @@ export function setLocalStorageJSON<T>(key: string, value: T): boolean {
 }
 
 export function removeLocalStorageItem(key: string): void {
-    if (typeof window === 'undefined') {
-        return;
-    }
+    if (isServer) return;
     localStorage.removeItem(key);
 }

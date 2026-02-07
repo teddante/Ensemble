@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { OpenRouter } from '@openrouter/sdk';
 import { handleOpenRouterError } from '@/lib/errors';
-import { withCSRF } from '@/lib/apiSecurity';
+import { withCSRF, errorResponse } from '@/lib/apiSecurity';
+import { createOpenRouterClient } from '@/lib/openrouter';
 
 export const runtime = 'edge';
 
@@ -16,11 +16,7 @@ export const GET = withCSRF(async (_request: NextRequest) => {
             apiKey = await getApiKeyFromCookie() || '';
         }
 
-        const client = new OpenRouter({
-            apiKey,
-            httpReferer: process.env.NEXT_PUBLIC_APP_URL || 'https://ensemble.app',
-            xTitle: 'Ensemble Multi-LLM',
-        });
+        const client = createOpenRouterClient(apiKey);
 
         const response = await client.models.list();
         const data = response.data;
@@ -45,9 +41,6 @@ export const GET = withCSRF(async (_request: NextRequest) => {
         return NextResponse.json({ models });
     } catch (error) {
         console.error('Failed to fetch models:', error);
-        return NextResponse.json(
-            { error: handleOpenRouterError(error) },
-            { status: 500 }
-        );
+        return errorResponse(handleOpenRouterError(error), 500);
     }
 });
