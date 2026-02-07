@@ -1,7 +1,7 @@
 'use client';
 
-import { ReactNode } from 'react';
-import { useBackdropDismiss, useEscapeDismiss } from '@/hooks/useModalDismiss';
+import { ReactNode, useRef } from 'react';
+import { useBackdropDismiss, useEscapeDismiss, useFocusTrap } from '@/hooks/useModalDismiss';
 
 interface BaseModalProps {
     isOpen: boolean;
@@ -37,14 +37,17 @@ export function BaseModal({
     ariaLabelledBy,
     ariaDescribedBy,
 }: BaseModalProps) {
+    const contentRef = useRef<HTMLDivElement>(null);
     const handleOverlayClick = useBackdropDismiss<HTMLDivElement>(onClose, preventClose);
     useEscapeDismiss({ enabled: isOpen && !preventClose, onDismiss: onClose });
+    useFocusTrap(contentRef, isOpen);
 
     if (!isOpen) return null;
 
     return (
         <div className={overlayClassName || 'modal-overlay'} onClick={handleOverlayClick} style={overlayStyle}>
             <div
+                ref={contentRef}
                 className={contentClassName || 'modal-content'}
                 style={contentStyle}
                 role={role}

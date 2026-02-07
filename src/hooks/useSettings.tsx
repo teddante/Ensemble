@@ -14,7 +14,6 @@ interface SettingsContextType {
     updateSelectedModels: (models: string[]) => void;
     updateModelConfig: (modelId: string, config: ModelConfig) => void;
     updateRefinementModel: (model: string) => void;
-    updateSystemPrompt: (prompt: string) => void;
     updateSettings: (newSettings: Partial<Settings>) => void;
     hasApiKey: boolean;
     isCheckingKey: boolean;
@@ -183,10 +182,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         }));
     };
 
-    const updateSystemPrompt = (prompt: string) => {
-        setSettings(prev => ({ ...prev, systemPrompt: prompt }));
-    };
-
     const updateSettings = (newSettings: Partial<Settings>) => {
         setSettings(prev => ({ ...prev, ...newSettings }));
     };
@@ -200,7 +195,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 updateModelConfig,
 
                 updateRefinementModel,
-                updateSystemPrompt,
                 updateSettings,
                 hasApiKey,
                 isCheckingKey,

@@ -31,8 +31,7 @@ export interface Model {
         max_completion_tokens: number;
         is_moderated: boolean;
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    per_request_limits?: any;
+    per_request_limits?: { promptTokens: number; completionTokens: number } | null;
 }
 
 export interface ReasoningParams {
@@ -59,16 +58,6 @@ export interface ModelResponse {
         messages: Message[];
         modelId: string;
     };
-}
-
-export interface GenerationRequest {
-    prompt: string;
-    messages?: Message[];
-    models: string[];
-    apiKey: string;
-    refinementModel?: string;
-    systemPrompt?: string;
-    sessionId?: string;
 }
 
 export interface StreamEvent {
@@ -119,16 +108,16 @@ export interface Settings {
 
 export const FALLBACK_MODELS: Model[] = [
     {
-        id: 'anthropic/claude-3.5-sonnet',
-        name: 'Claude 3.5 Sonnet',
+        id: 'anthropic/claude-sonnet-4.5',
+        name: 'Claude Sonnet 4.5',
         provider: 'Anthropic',
         description: 'Most intelligent Claude model'
     },
     {
-        id: 'google/gemini-2.0-flash-exp:free',
-        name: 'Gemini 2.0 Flash',
+        id: 'google/gemini-2.5-flash',
+        name: 'Gemini 2.5 Flash',
         provider: 'Google',
-        description: 'Google latest experimental model (Free)'
+        description: 'Google state-of-the-art reasoning model'
     },
     {
         id: 'openai/gpt-4o',
@@ -137,8 +126,8 @@ export const FALLBACK_MODELS: Model[] = [
         description: 'OpenAI flagship multimodal model'
     },
     {
-        id: 'anthropic/claude-3-haiku',
-        name: 'Claude 3 Haiku',
+        id: 'anthropic/claude-haiku-3.5',
+        name: 'Claude 3.5 Haiku',
         provider: 'Anthropic',
         description: 'Fast and affordable Claude model'
     },
@@ -149,32 +138,32 @@ export const FALLBACK_MODELS: Model[] = [
         description: 'Affordable and fast OpenAI model'
     },
     {
-        id: 'meta-llama/llama-3.1-70b-instruct',
-        name: 'Llama 3.1 70B',
+        id: 'meta-llama/llama-3.3-70b-instruct',
+        name: 'Llama 3.3 70B',
         provider: 'Meta',
         description: 'Open source Llama model'
     },
     {
-        id: 'mistralai/mistral-large',
+        id: 'mistralai/mistral-large-2411',
         name: 'Mistral Large',
         provider: 'Mistral',
         description: 'Mistral flagship model'
     },
     {
-        id: 'deepseek/deepseek-chat',
-        name: 'DeepSeek Chat',
+        id: 'deepseek/deepseek-chat-v3-0324',
+        name: 'DeepSeek Chat V3',
         provider: 'DeepSeek',
         description: 'DeepSeek V3 model'
     }
 ];
 
 export const DEFAULT_SELECTED_MODELS = [
-    'anthropic/claude-3.5-sonnet',
+    'anthropic/claude-sonnet-4.5',
     'openai/gpt-4o',
-    'google/gemini-2.0-flash-exp:free'
+    'google/gemini-2.5-flash'
 ];
 
-export const DEFAULT_REFINEMENT_MODEL = 'anthropic/claude-3.5-sonnet';
+export const DEFAULT_REFINEMENT_MODEL = 'anthropic/claude-sonnet-4.5';
 
 /**
  * Validates selected models against available models list

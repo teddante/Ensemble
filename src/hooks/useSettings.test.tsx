@@ -66,7 +66,7 @@ describe('useSettings', () => {
             await waitFor(() => {
                 expect(mockFetch).toHaveBeenCalledWith('/api/key', expect.objectContaining({
                     credentials: 'include',
-                    headers: { 'X-Requested-With': 'fetch' },
+                    headers: { 'x-requested-with': 'fetch' },
                 }));
             });
 

@@ -41,31 +41,6 @@ describe('Crypto Module', () => {
         });
     });
 
-    describe('isEncrypted', () => {
-        it('should return true for values with ENS: prefix', async () => {
-            // Reset modules to get fresh import
-            vi.resetModules();
-
-            // Set env var
-            vi.stubEnv('COOKIE_ENCRYPTION_KEY', 'test-key-that-is-at-least-32-characters-long');
-
-            const { isEncrypted } = await import('./crypto');
-
-            expect(isEncrypted('ENS:somebase64encrypteddata')).toBe(true);
-        });
-
-        it('should return false for values without ENS: prefix', async () => {
-            vi.resetModules();
-            vi.stubEnv('COOKIE_ENCRYPTION_KEY', 'test-key-that-is-at-least-32-characters-long');
-
-            const { isEncrypted } = await import('./crypto');
-
-            expect(isEncrypted('somebase64data')).toBe(false);
-            expect(isEncrypted('sk-or-v1-testkey')).toBe(false);
-            expect(isEncrypted('')).toBe(false);
-        });
-    });
-
     describe('encrypt/decrypt', () => {
         it('should throw error if COOKIE_ENCRYPTION_KEY is not set', async () => {
             vi.resetModules();

@@ -2,7 +2,7 @@
 
 export const STORAGE_KEYS = {
     HISTORY: 'ensemble_history',
-    SETTINGS: 'ensemble-settings',
+    SETTINGS: 'ensemble_settings',
     MODELS_CACHE: 'ensemble_models_cache',
     VALIDATED_FALLBACK: 'ensemble_validated_fallback',
 } as const;

@@ -1,7 +1,7 @@
 'use client';
 
 import { AlertTriangle } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { BaseModal } from './BaseModal';
 import { ICON_SIZE } from '@/lib/constants';
 
@@ -26,9 +26,11 @@ export function ConfirmModal({
     onCancel,
     variant = 'warning',
 }: ConfirmModalProps) {
+    const id = useId();
+    const titleId = `${id}-title`;
+    const messageId = `${id}-message`;
     const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
-    // Focus confirm button when modal opens
     useEffect(() => {
         if (isOpen && confirmButtonRef.current) {
             confirmButtonRef.current.focus();
@@ -38,12 +40,12 @@ export function ConfirmModal({
     const getVariantColor = () => {
         switch (variant) {
             case 'danger':
-                return 'var(--accent-error)';
+                return 'var(--color-error)';
             case 'warning':
-                return 'var(--accent-warning)';
+                return 'var(--color-warning)';
             case 'info':
             default:
-                return 'var(--accent-primary)';
+                return 'var(--color-accent-primary)';
         }
     };
 
@@ -54,40 +56,33 @@ export function ConfirmModal({
             overlayStyle={{ zIndex: 1001 }}
             contentStyle={{ maxWidth: '400px', textAlign: 'center' }}
             role="alertdialog"
-            ariaLabelledBy="confirm-title"
-            ariaDescribedBy="confirm-message"
+            ariaLabelledBy={titleId}
+            ariaDescribedBy={messageId}
         >
-                <div className="modal-header" style={{ justifyContent: 'center', borderBottom: 'none' }}>
+                <div className="modal-header confirm-modal-header">
                     <div className="confirm-icon-container" style={{
                         backgroundColor: `${getVariantColor()}20`,
                     }}>
                         <AlertTriangle size={ICON_SIZE.xl} style={{ color: getVariantColor() }} />
                     </div>
-                    <h2 id="confirm-title" style={{ width: '100%', marginBottom: '0.5rem' }}>{title}</h2>
+                    <h2 id={titleId} className="confirm-modal-title">{title}</h2>
                 </div>
 
-                <div className="modal-body" style={{ paddingTop: 0 }}>
-                    <p id="confirm-message" style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                <div className="modal-body confirm-modal-body">
+                    <p id={messageId} className="confirm-modal-message">
                         {message}
                     </p>
                 </div>
 
-                <div className="modal-footer" style={{ justifyContent: 'center', gap: '1rem', borderTop: 'none', paddingTop: '0.5rem' }}>
-                    <button
-                        className="button-secondary"
-                        onClick={onCancel}
-                        style={{ minWidth: '100px' }}
-                    >
+                <div className="modal-footer confirm-modal-footer">
+                    <button className="button-secondary" onClick={onCancel}>
                         {cancelText}
                     </button>
                     <button
                         ref={confirmButtonRef}
                         className="button-primary"
                         onClick={onConfirm}
-                        style={{
-                            minWidth: '100px',
-                            backgroundColor: variant === 'danger' ? 'var(--accent-error)' : undefined,
-                        }}
+                        style={variant === 'danger' ? { backgroundColor: 'var(--color-error)' } : undefined}
                     >
                         {confirmText}
                     </button>

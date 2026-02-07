@@ -1,7 +1,7 @@
 // Utility functions for formatting and displaying model metadata
 
 import { Model } from '@/types';
-import { isReasoningModel as isReasoningModelFromUtils, supportsReasoningByParameters } from '@/lib/reasoning';
+import { supportsReasoningByParameters } from '@/lib/reasoning';
 
 /**
  * Format context window size for display
@@ -41,21 +41,8 @@ export function formatPricing(pricing: Model['pricing']): string {
 
     if (perMillion < 0.01) {
         return `$${perMillion.toFixed(4)}/M`;
-    } else if (perMillion < 1) {
-        return `$${perMillion.toFixed(2)}/M`;
-    } else {
-        return `$${perMillion.toFixed(2)}/M`;
     }
-}
-
-/**
- * Get max completion tokens from model's top_provider info
- */
-export function formatMaxOutput(model: Model): string {
-    const maxTokens = model.top_provider?.max_completion_tokens;
-    if (!maxTokens) return '';
-
-    return formatContextLength(maxTokens);
+    return `$${perMillion.toFixed(2)}/M`;
 }
 
 /**
@@ -95,13 +82,6 @@ export function getModelCapabilities(model: Model): string[] {
 }
 
 /**
- * Check if model supports a specific capability
- */
-export function hasCapability(model: Model, capability: string): boolean {
-    return getModelCapabilities(model).includes(capability);
-}
-
-/**
  * Check if a model is free (no prompt/completion cost)
  */
 export function isFreeModel(model: Model): boolean {
@@ -118,9 +98,3 @@ export function getModelName(modelId: string, models: Model[]): string {
     return model?.name || modelId.split('/').pop() || modelId;
 }
 
-/**
- * Determines if a model supports reasoning/thinking capabilities.
- */
-export function isReasoningModel(model: Model): boolean {
-    return isReasoningModelFromUtils(model);
-}

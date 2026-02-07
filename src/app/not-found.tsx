@@ -21,51 +21,6 @@ export default function NotFound() {
                     </Link>
                 </div>
             </div>
-
-            <style jsx>{`
-        .error-page {
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 2rem;
-          background: var(--bg-primary);
-        }
-        .error-container {
-          text-align: center;
-          max-width: 500px;
-          padding: 3rem;
-          background: var(--bg-secondary);
-          border-radius: 1rem;
-          border: 1px solid var(--border-primary);
-        }
-        .error-icon {
-          color: var(--text-secondary);
-          margin-bottom: 1.5rem;
-        }
-        h1 {
-          font-size: 1.5rem;
-          font-weight: 600;
-          color: var(--text-primary);
-          margin-bottom: 0.75rem;
-        }
-        .error-message {
-          color: var(--text-secondary);
-          margin-bottom: 1.5rem;
-          line-height: 1.5;
-        }
-        .error-actions {
-          display: flex;
-          gap: 1rem;
-          justify-content: center;
-        }
-        .error-actions :global(a) {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          text-decoration: none;
-        }
-      `}</style>
         </div>
     );
 }

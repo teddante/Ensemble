@@ -13,10 +13,6 @@ interface ErrorBoundaryState {
     error: Error | null;
 }
 
-/**
- * Error boundary component to catch React render errors
- * and display a fallback UI instead of crashing the entire app
- */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     constructor(props: ErrorBoundaryProps) {
         super(props);
@@ -50,26 +46,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                             Try again
                         </button>
                     </div>
-
-                    <style jsx>{`
-                        .error-boundary-fallback {
-                            padding: 1.5rem;
-                            background: var(--bg-secondary);
-                            border: 1px solid var(--border-primary);
-                            border-radius: 0.75rem;
-                            text-align: center;
-                        }
-                        .error-boundary-content h3 {
-                            color: var(--accent-warning);
-                            margin-bottom: 0.5rem;
-                            font-size: 1rem;
-                        }
-                        .error-boundary-content p {
-                            color: var(--text-secondary);
-                            font-size: 0.875rem;
-                            margin-bottom: 1rem;
-                        }
-                    `}</style>
                 </div>
             );
         }

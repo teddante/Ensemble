@@ -1,12 +1,15 @@
 // OpenRouter API client using the official SDK
 import { OpenRouter } from '@openrouter/sdk';
+import type { Message as SDKMessage } from '@openrouter/sdk/models/message';
+import type { Reasoning } from '@openrouter/sdk/models/chatgenerationparams';
 import { ReasoningParams, Message } from '@/types';
-import { OpenRouterUsage, OpenRouterDelta } from '@/types/openrouter.types';
+import { OpenRouterUsage } from '@/types/openrouter.types';
 import { MAX_SYNTHESIS_CHARS, MAX_RETRIES, REQUEST_TIMEOUT_MS, ACTIVITY_TIMEOUT_MS } from '@/lib/constants';
 import { exponentialBackoff } from '@/lib/retry';
 import { isRetryableError } from '@/lib/errorClassifier';
 import { countWords } from '@/lib/textUtils';
 import { isReasoningUnsupportedError } from '@/lib/reasoning';
+import { logger } from '@/lib/logger';
 
 export function createOpenRouterClient(apiKey: string): OpenRouter {
     return new OpenRouter({
@@ -36,7 +39,6 @@ export async function streamModelResponse({
     model,
     apiKey,
     reasoning,
-    includeReasoning,
     onChunk,
     onReasoning,
     onComplete,
@@ -47,7 +49,6 @@ export async function streamModelResponse({
 
     let lastError: Error | null = null;
     let reasoningForRequest = reasoning;
-    let includeReasoningForRequest = includeReasoning;
     let disabledReasoningDueToProvider = false;
 
     // Prepare messages for chat completion
@@ -94,22 +95,18 @@ export async function streamModelResponse({
             // Start with initial connection timeout (longer - 120s for first response)
             resetActivityTimeout(REQUEST_TIMEOUT_MS);
 
+            // Targeted casts: our Message/ReasoningParams types are runtime-compatible
+            // with the SDK's discriminated unions but lack branded type markers
             const stream = await client.chat.send(
                 {
                     model,
-                    messages: chatMessages,
-                    reasoning: reasoningForRequest,
+                    messages: chatMessages as SDKMessage[],
+                    reasoning: reasoningForRequest as Reasoning | undefined,
                     stream: true,
-                    // Use snake_case for OpenAI compatibility
-                    stream_options: {
-                        include_usage: true,
-                        include_reasoning: includeReasoningForRequest
-                    }
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                } as any,
+                    streamOptions: { includeUsage: true },
+                },
                 { signal: combinedSignal }
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ) as any;
+            );
 
             // Once streaming starts, switch to shorter activity timeout
             resetActivityTimeout(ACTIVITY_TIMEOUT_MS);
@@ -119,15 +116,14 @@ export async function streamModelResponse({
                 // Reset activity timeout on each chunk - model is still responding
                 resetActivityTimeout(ACTIVITY_TIMEOUT_MS);
                 // Check for errors in chunk
-                if ('error' in chunk && chunk.error) {
+                if (chunk.error) {
                     const errorMessage = chunk.error.message || 'Unknown error';
 
                     if (!disabledReasoningDueToProvider
-                        && (reasoningForRequest || includeReasoningForRequest)
+                        && reasoningForRequest
                         && isReasoningUnsupportedError(errorMessage)) {
                         disabledReasoningDueToProvider = true;
                         reasoningForRequest = undefined;
-                        includeReasoningForRequest = false;
                         retryWithoutReasoning = true;
                         break;
                     }
@@ -145,45 +141,22 @@ export async function streamModelResponse({
                 // Handle usage if present (usually in the last chunk)
                 if (chunk.usage) {
                     finalUsage = {
-                        prompt_tokens: chunk.usage.promptTokens ?? 0,
-                        completion_tokens: chunk.usage.completionTokens ?? 0,
-                        total_tokens: chunk.usage.totalTokens ?? 0,
+                        prompt_tokens: chunk.usage.promptTokens,
+                        completion_tokens: chunk.usage.completionTokens,
+                        total_tokens: chunk.usage.totalTokens,
                     };
                 }
 
-                // Handle reasoning/thinking tokens
-                // Supports both legacy format and new structured reasoning_details array
-                const delta = chunk.choices?.[0]?.delta as OpenRouterDelta | undefined;
-
-                // Extract reasoning from structured reasoning_details array (new format per OpenRouter docs)
-                let reasoningContent: string | null = null;
-                if (delta?.reasoning_details && Array.isArray(delta.reasoning_details)) {
-                    for (const detail of delta.reasoning_details) {
-                        if (detail.type === 'reasoning.text' && 'text' in detail) {
-                            reasoningContent = detail.text;
-                            break;
-                        } else if (detail.type === 'reasoning.summary' && 'summary' in detail) {
-                            reasoningContent = detail.summary;
-                            break;
-                        }
-                        // Note: reasoning.encrypted type contains 'data' field but is redacted
-                    }
-                }
-
-                // Fall back to legacy reasoning field for backward compatibility
-                if (!reasoningContent && delta?.reasoning) {
-                    reasoningContent = delta.reasoning;
-                }
-
-                if (reasoningContent && onReasoning) {
-                    onReasoning(reasoningContent);
+                // Handle reasoning/thinking tokens (SDK surfaces this natively on delta)
+                const delta = chunk.choices?.[0]?.delta;
+                if (delta?.reasoning && onReasoning) {
+                    onReasoning(delta.reasoning);
                 }
 
                 // Handle content tokens
-                const content = chunk.choices?.[0]?.delta?.content;
-                if (content) {
-                    fullContent += content;
-                    onChunk(content);
+                if (delta?.content) {
+                    fullContent += delta.content;
+                    onChunk(delta.content);
                 }
             }
 
@@ -199,14 +172,13 @@ export async function streamModelResponse({
             }
         } catch (error) {
             clearActivityTimeout();
-            console.error(`Stream error for model ${model}:`, error); // Log the real error
+            logger.error(`Stream error for model ${model}`, { error: String(error) });
             if (error instanceof Error) {
                 if (!disabledReasoningDueToProvider
-                    && (reasoningForRequest || includeReasoningForRequest)
+                    && reasoningForRequest
                     && isReasoningUnsupportedError(error.message)) {
                     disabledReasoningDueToProvider = true;
                     reasoningForRequest = undefined;
-                    includeReasoningForRequest = false;
                     continue;
                 }
 
@@ -222,7 +194,7 @@ export async function streamModelResponse({
                     const isTimeout = error.name === 'TimeoutError' ||
                         error.message.includes('timeout') ||
                         error.message.includes('Activity timeout');
-                    console.warn(`Retry attempt ${attempt + 1} for model ${model}: ${isTimeout ? 'timeout' : error.message}`);
+                    logger.warn(`Retry attempt ${attempt + 1} for model ${model}: ${isTimeout ? 'timeout' : error.message}`);
 
                     // Reset the activity controller for the retry
                     // Note: We create a fresh timeout in the next iteration

@@ -81,7 +81,6 @@ async function generateSingleModelResponse(
     messages: Message[] | undefined,
     apiKey: string,
     reasoning: ReasoningParams | undefined,
-    includeReasoning: boolean | undefined,
     controller: ReadableStreamDefaultController,
     signal: AbortSignal
 ): Promise<{ modelId: string; content: string; success: boolean; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } }> {
@@ -108,7 +107,6 @@ async function generateSingleModelResponse(
             model,
             apiKey,
             reasoning,
-            includeReasoning,
             onChunk: (content) => {
                 fullContent += content;
                 sendEvent(controller, { type: 'model_chunk', instanceId, modelId: model, content });
@@ -187,8 +185,15 @@ export async function POST(request: NextRequest): Promise<Response> {
         const systemPrompt = injected.systemPrompt;
         const messages = injected.messages;
 
-        const effectiveMaxSynthesisChars = typeof maxSynthesisChars === 'number' ? maxSynthesisChars : MAX_SYNTHESIS_CHARS;
-        const effectiveWarningThreshold = typeof contextWarningThreshold === 'number' ? contextWarningThreshold : 0.8;
+        const effectiveMaxSynthesisChars = typeof maxSynthesisChars === 'number' && maxSynthesisChars >= 100 && maxSynthesisChars <= 100000
+            ? maxSynthesisChars : MAX_SYNTHESIS_CHARS;
+        const effectiveWarningThreshold = typeof contextWarningThreshold === 'number' && contextWarningThreshold >= 0.1 && contextWarningThreshold <= 0.95
+            ? contextWarningThreshold : 0.8;
+
+        // Validate sessionId format (UUID v4)
+        if (safeSessionId && !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(safeSessionId)) {
+            return errorResponse('Invalid session ID format', 400);
+        }
 
         // Get API key from Cookie only (secure storage)
         const apiKey: string | null = await getApiKeyFromCookie();
@@ -259,7 +264,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                         for (const modelData of modelListResponse.data ?? []) {
                             const modelId = (modelData.id ?? '').toString();
                             if (!modelId) continue;
-                            const supportedParameters = modelData.supportedParameters;
+                            const supportedParameters = modelData.supportedParameters as string[];
                             if (isReasoningModel({ id: modelId, supported_parameters: supportedParameters })) {
                                 reasoningSupportedModels.add(modelId);
                             }
@@ -285,7 +290,6 @@ export async function POST(request: NextRequest): Promise<Response> {
                             messages,
                             apiKeyValidation.sanitized!,
                             reasoningOptions.reasoning,
-                            reasoningOptions.includeReasoning,
                             controller,
                             abortController.signal
                         );
@@ -396,7 +400,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
         return createSSEResponse(stream);
     } catch (error) {
-        console.error('Generation error:', error);
+        logger.error('Generation error', { requestId, error: String(error) });
         return errorResponse(handleOpenRouterError(error), 500);
     }
 }

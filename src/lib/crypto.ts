@@ -103,9 +103,3 @@ export async function decrypt(ciphertext: string): Promise<string> {
     return decoder.decode(plaintext);
 }
 
-/**
- * Check if a value is encrypted using magic prefix
- */
-export function isEncrypted(value: string): boolean {
-    return value.startsWith(ENCRYPTION_MAGIC_PREFIX);
-}
