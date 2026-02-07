@@ -9,11 +9,7 @@ interface SSEEvent {
     modelId?: string;
     content?: string;
     error?: string;
-    tokens?: {
-        prompt: number;
-        completion: number;
-        total: number;
-    };
+    tokens?: number;
 }
 
 /**
@@ -58,7 +54,7 @@ export function createMockGenerateResponse(options: {
             type: 'model_complete',
             modelId,
             content: fullContent,
-            tokens: { prompt: 10, completion: 20, total: 30 }
+            tokens: 30
         });
     }
 
@@ -151,7 +147,7 @@ export const test = base.extend<{
                     await route.fulfill({
                         status: 200,
                         contentType: 'application/json',
-                        body: JSON.stringify(MOCK_MODELS),
+                        body: JSON.stringify({ models: MOCK_MODELS }),
                     });
                 });
             },

@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { checkRateLimit } from './rateLimit';
 
 // Mock dependencies
 const limitMock = vi.fn();

@@ -29,6 +29,13 @@ export type RateLimitResult = {
     reset: number;
 };
 
+async function hashIdentifier(identifier: string): Promise<string> {
+    const input = new TextEncoder().encode(identifier);
+    const digest = await crypto.subtle.digest('SHA-256', input);
+    const hashBytes = new Uint8Array(digest);
+    return Array.from(hashBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
 export async function checkRateLimit(identifier: string): Promise<RateLimitResult> {
     if (!ratelimit) {
         // If Redis is not configured, we don't rate limit
@@ -43,7 +50,8 @@ export async function checkRateLimit(identifier: string): Promise<RateLimitResul
     }
 
     try {
-        const { success, limit, remaining, reset } = await ratelimit.limit(identifier);
+        const hashedIdentifier = await hashIdentifier(identifier);
+        const { success, limit, remaining, reset } = await ratelimit.limit(`api_key:${hashedIdentifier}`);
         return { success, limit, remaining, reset };
     } catch (error) {
         logger.error('Rate limit check failed', { error });

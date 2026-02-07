@@ -7,7 +7,7 @@ test.describe('Error Recovery', () => {
     });
 
     // Skip: SSE streaming mocks - complete event clears state before React renders
-    test.skip('should show error for single model failure while continuing others', async ({ page }) => {
+    test('should show error for single model failure while continuing others', async ({ page }) => {
         await page.unroute('**/api/generate');
         await page.route('**/api/generate', async (route) => {
             const response = [
@@ -68,7 +68,7 @@ test.describe('Error Recovery', () => {
     });
 
     // Skip: Same SSE streaming mock limitation - waitForGeneration fails
-    test.skip('should recover after error and allow new generation', async ({ page, mockApi }) => {
+    test('should recover after error and allow new generation', async ({ page, mockApi }) => {
         await page.unroute('**/api/generate');
         await page.route('**/api/generate', async (route) => {
             await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'Temporary error' }) });
@@ -87,13 +87,13 @@ test.describe('Error Recovery', () => {
     });
 
     // Skip: SSE synthesis error requires streaming mock to work
-    test.skip('should handle synthesis error gracefully', async ({ page }) => {
+    test('should handle synthesis error gracefully', async ({ page }) => {
         await page.unroute('**/api/generate');
         await page.route('**/api/generate', async (route) => {
             let response = '';
             response += formatSSE({ type: 'model_start', modelId: 'test/model' });
             response += formatSSE({ type: 'model_chunk', modelId: 'test/model', content: 'Model response' });
-            response += formatSSE({ type: 'model_complete', modelId: 'test/model', content: 'Model response', tokens: { prompt: 10, completion: 20, total: 30 } });
+            response += formatSSE({ type: 'model_complete', modelId: 'test/model', content: 'Model response', tokens: 30 });
             response += formatSSE({ type: 'synthesis_start' });
             response += formatSSE({ type: 'error', error: 'Synthesis failed' });
             response += formatSSE({ type: 'complete' });

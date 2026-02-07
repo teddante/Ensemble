@@ -9,9 +9,22 @@ import { handleOpenRouterError } from '@/lib/errors';
 import { checkRateLimit } from '@/lib/rateLimit';
 import { acquireLock, releaseLock } from '@/lib/sessionLock';
 import { countWords } from '@/lib/textUtils';
-import { errorResponse } from '@/lib/apiSecurity';
+import { errorResponse, validateCSRF } from '@/lib/apiSecurity';
 
 export const runtime = 'edge';
+
+interface GenerateRequestBody {
+    prompt: string;
+    models: string[];
+    refinementModel?: string;
+    reasoning?: { effort?: ReasoningParams['effort'] };
+    modelConfigs?: Record<string, { reasoning?: { enabled?: boolean; effort?: ReasoningParams['effort'] } }>;
+    maxSynthesisChars?: number;
+    contextWarningThreshold?: number;
+    sessionId?: string;
+    systemPrompt?: string;
+    messages?: Message[];
+}
 
 function createSSEResponse(stream: ReadableStream): Response {
     return new Response(stream, {
@@ -130,22 +143,40 @@ export async function POST(request: NextRequest): Promise<Response> {
     logger.info('Generation request started', { requestId });
 
     try {
+        if (!validateCSRF(request)) {
+            return errorResponse('Invalid request', 403);
+        }
+
         // Check request body size
-        const contentLength = request.headers.get('content-length');
-        if (contentLength && parseInt(contentLength, 10) > MAX_REQUEST_BODY_SIZE) {
+        const contentLengthHeader = request.headers.get('content-length');
+        if (contentLengthHeader && parseInt(contentLengthHeader, 10) > MAX_REQUEST_BODY_SIZE) {
             return errorResponse('Request body too large', 413);
         }
 
-        const body = await request.json();
+        const rawBody = await request.text();
+        const rawBodySize = new TextEncoder().encode(rawBody).byteLength;
+        if (rawBodySize > MAX_REQUEST_BODY_SIZE) {
+            return errorResponse('Request body too large', 413);
+        }
+
+        let body: GenerateRequestBody;
+        try {
+            body = JSON.parse(rawBody) as GenerateRequestBody;
+        } catch {
+            return errorResponse('Invalid JSON body', 400);
+        }
+
         const { prompt, models, refinementModel, reasoning: globalReasoning, modelConfigs, maxSynthesisChars, contextWarningThreshold, sessionId } = body;
+        const safeRefinementModel = typeof refinementModel === 'string' ? refinementModel : undefined;
+        const safeSessionId = typeof sessionId === 'string' ? sessionId : undefined;
 
         // Inject current date/time into both systemPrompt and messages
         const injected = injectTimestamp(body.systemPrompt, body.messages);
         const systemPrompt = injected.systemPrompt;
         const messages = injected.messages;
 
-        const effectiveMaxSynthesisChars = maxSynthesisChars || MAX_SYNTHESIS_CHARS;
-        const effectiveWarningThreshold = contextWarningThreshold || 0.8;
+        const effectiveMaxSynthesisChars = typeof maxSynthesisChars === 'number' ? maxSynthesisChars : MAX_SYNTHESIS_CHARS;
+        const effectiveWarningThreshold = typeof contextWarningThreshold === 'number' ? contextWarningThreshold : 0.8;
 
         // Get API key from Cookie only (secure storage)
         const apiKey: string | null = await getApiKeyFromCookie();
@@ -173,7 +204,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         // Rate Limiting (by API Key)
         const rateLimitResult = await checkRateLimit(apiKeyValidation.sanitized!);
         if (!rateLimitResult.success) {
-            logger.warn('Rate limit exceeded', { requestId, apiKey: apiKeyValidation.sanitized!.substring(0, 10) + '...' });
+            logger.warn('Rate limit exceeded', { requestId });
             return errorResponse(
                 'Rate limit exceeded. Please try again later.',
                 429,
@@ -182,10 +213,10 @@ export async function POST(request: NextRequest): Promise<Response> {
         }
 
         // Session Locking
-        if (sessionId) {
-            const locked = await acquireLock(sessionId);
+        if (safeSessionId) {
+            const locked = await acquireLock(safeSessionId);
             if (!locked) {
-                logger.warn('Session locked', { requestId, sessionId });
+                logger.warn('Session locked', { requestId, sessionId: safeSessionId });
                 return errorResponse('A request is already in progress for this session. Please wait for it to complete.', 409);
             }
         }
@@ -239,7 +270,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                     }
 
                     // Synthesize responses
-                    const synthesisModel = refinementModel || models[0];
+                    const synthesisModel = safeRefinementModel || models[0];
                     sendEvent(controller, { type: 'synthesis_start', modelId: synthesisModel });
 
                     try {
@@ -320,8 +351,8 @@ export async function POST(request: NextRequest): Promise<Response> {
                 } catch (error) {
                     sendEvent(controller, { type: 'error', error: handleOpenRouterError(error) });
                 } finally {
-                    if (sessionId) {
-                        await releaseLock(sessionId);
+                    if (safeSessionId) {
+                        await releaseLock(safeSessionId);
                     }
                     controller.close();
                 }

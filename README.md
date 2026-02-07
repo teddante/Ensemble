@@ -29,7 +29,7 @@ A Next.js web application that queries multiple Large Language Models simultaneo
 ## Quick Start
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 20.9+
 - OpenRouter API Key ([Get one here](https://openrouter.ai/keys))
 - (Optional) Upstash Redis for rate limiting
 
@@ -76,7 +76,7 @@ Open [http://localhost:3000](http://localhost:3000) and enter your OpenRouter AP
 
 ## Tech Stack
 
-- **Framework**: Next.js 15 (App Router, Turbopack)
+- **Framework**: Next.js 16 (App Router, Turbopack)
 - **Language**: TypeScript 5
 - **Runtime**: React 19
 - **Styling**: Tailwind CSS 4 + Custom CSS
@@ -148,7 +148,7 @@ npm run test:e2e     # Run E2E tests (Playwright)
 
 ## Testing
 
-The project includes comprehensive test coverage:
+The project includes unit, component, hook, and E2E tests:
 
 - **Unit Tests**: `src/**/*.test.ts` - Core logic and utilities
 - **Component Tests**: `src/components/*.test.tsx` - React components

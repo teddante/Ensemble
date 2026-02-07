@@ -14,7 +14,7 @@ function getEncryptionKey(): string {
     if (!key) {
         throw new Error(
             'COOKIE_ENCRYPTION_KEY environment variable is required.\n' +
-            'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+            'Generate one with: openssl rand -base64 32'
         );
     }
 
@@ -28,11 +28,13 @@ function getEncryptionKey(): string {
 // Derive a CryptoKey from the string key
 async function deriveKey(keyString: string): Promise<CryptoKey> {
     const encoder = new TextEncoder();
-    const keyData = encoder.encode(keyString.slice(0, 32)); // Use first 32 chars
+    // Derive stable 256-bit key material from the full secret.
+    const keyMaterial = encoder.encode(keyString);
+    const digest = await crypto.subtle.digest('SHA-256', keyMaterial);
 
     const rawKey = await crypto.subtle.importKey(
         'raw',
-        keyData,
+        digest,
         { name: ALGORITHM },
         false,
         ['encrypt', 'decrypt']
@@ -79,10 +81,12 @@ export async function decrypt(ciphertext: string): Promise<string> {
     const key = await deriveKey(getEncryptionKey());
     const decoder = new TextDecoder();
 
+    if (!ciphertext.startsWith(ENCRYPTION_MAGIC_PREFIX)) {
+        throw new Error('Invalid encrypted value format');
+    }
+
     // Strip magic prefix and decode from base64
-    const base64Data = ciphertext.startsWith(ENCRYPTION_MAGIC_PREFIX)
-        ? ciphertext.slice(ENCRYPTION_MAGIC_PREFIX.length)
-        : ciphertext; // Handle legacy values without prefix
+    const base64Data = ciphertext.slice(ENCRYPTION_MAGIC_PREFIX.length);
     const combined = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
 
     // Extract IV and ciphertext

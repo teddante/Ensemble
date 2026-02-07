@@ -2,7 +2,7 @@ import { test, expect, navigateAndWaitForReady, navigateWithKeyCheck } from './f
 
 test.describe('API Key Management', () => {
     // Skip: Modal visibility timing issues - modal may open before React state settles
-    test.skip('should show settings modal on first load without API key', async ({ page, mockApi }) => {
+    test('should show settings modal on first load without API key', async ({ page, mockApi }) => {
         await mockApi.mockModels();
         await mockApi.mockApiKeyNotExists();
         await navigateWithKeyCheck(page);
@@ -12,7 +12,7 @@ test.describe('API Key Management', () => {
     });
 
     // Skip: Same modal timing issue
-    test.skip('should save API key and close modal', async ({ page, mockApi }) => {
+    test('should save API key and close modal', async ({ page, mockApi }) => {
         await mockApi.mockModels();
         let apiKeyPosted = false;
         await page.route('**/api/key', async (route) => {
@@ -35,7 +35,7 @@ test.describe('API Key Management', () => {
     });
 
     // Skip: Same modal timing issue
-    test.skip('should show error for invalid API key format', async ({ page, mockApi }) => {
+    test('should show error for invalid API key format', async ({ page, mockApi }) => {
         await mockApi.mockModels();
         await page.route('**/api/key', async (route) => {
             const method = route.request().method();

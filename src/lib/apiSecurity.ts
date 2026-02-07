@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const CSRF_HEADER = 'x-requested-with';
 
-function validateCSRF(request: NextRequest): boolean {
+export function validateCSRF(request: NextRequest): boolean {
     const header = request.headers.get(CSRF_HEADER);
     return header === 'XMLHttpRequest' || header === 'fetch';
 }

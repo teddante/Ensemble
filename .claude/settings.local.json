@@ -4,8 +4,7 @@
       "Bash(npx next build:*)",
       "Bash(npx jest --passWithNoTests)",
       "Bash(npx vitest run:*)",
-      "Bash(npm run build:*)",
-      "Bash(git -C c:/GitHub/Ensemble stash)"
+      "Bash(npm run build:*)"
     ]
   }
 }

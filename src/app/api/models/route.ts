@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { handleOpenRouterError } from '@/lib/errors';
 import { withCSRF, errorResponse } from '@/lib/apiSecurity';
 import { createOpenRouterClient } from '@/lib/openrouter';
 
 export const runtime = 'edge';
 
-export const GET = withCSRF(async (_request: NextRequest) => {
+export const GET = withCSRF(async () => {
     try {
         // Use server key if available, otherwise try user's cookie key
         let apiKey = process.env.OPENROUTER_API_KEY;

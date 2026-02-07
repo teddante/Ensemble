@@ -41,6 +41,7 @@ describe('/api/generate Route', () => {
             method: 'POST',
             headers: {
                 'content-type': 'application/json',
+                'x-requested-with': 'fetch',
                 ...headers,
             },
             body: JSON.stringify(body),

@@ -8,7 +8,7 @@ export const runtime = 'edge';
 
 const COOKIE_NAME = 'ensemble_api_key';
 
-export const GET = withCSRF(async (_request: NextRequest) => {
+export const GET = withCSRF(async () => {
     const cookieStore = await cookies();
     const hasKey = cookieStore.has(COOKIE_NAME);
     return NextResponse.json({ hasKey });
@@ -42,7 +42,7 @@ export const POST = withCSRF(async (request: NextRequest) => {
     }
 });
 
-export const DELETE = withCSRF(async (_request: NextRequest) => {
+export const DELETE = withCSRF(async () => {
     const cookieStore = await cookies();
     cookieStore.delete(COOKIE_NAME);
     return NextResponse.json({ success: true });

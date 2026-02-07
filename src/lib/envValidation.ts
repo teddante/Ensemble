@@ -15,7 +15,7 @@ export function validateEnvironment(): void {
     if (!encryptionKey) {
         errors.push(
             'COOKIE_ENCRYPTION_KEY is required.\n' +
-            'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+            'Generate one with: openssl rand -base64 32'
         );
     } else if (encryptionKey.length < 32) {
         errors.push('COOKIE_ENCRYPTION_KEY must be at least 32 characters');
