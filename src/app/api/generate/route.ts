@@ -16,6 +16,7 @@ export const runtime = 'edge';
 interface GenerateRequestBody {
     prompt: string;
     models: string[];
+    modelInstances?: { modelId: string; instanceId: string }[];
     refinementModel?: string;
     reasoning?: { effort?: ReasoningParams['effort'] };
     modelConfigs?: Record<string, { reasoning?: { enabled?: boolean; effort?: ReasoningParams['effort'] } }>;
@@ -73,6 +74,7 @@ function injectTimestamp(
 
 async function generateSingleModelResponse(
     model: string,
+    instanceId: string,
     prompt: string,
     messages: Message[] | undefined,
     apiKey: string,
@@ -90,11 +92,12 @@ async function generateSingleModelResponse(
 
     sendEvent(controller, {
         type: 'debug_prompt',
+        instanceId,
         modelId: model,
         promptData: { modelId: model, messages: debugMessages }
     });
 
-    sendEvent(controller, { type: 'model_start', modelId: model });
+    sendEvent(controller, { type: 'model_start', instanceId, modelId: model });
 
     try {
         await libStreamModelResponse({
@@ -106,10 +109,10 @@ async function generateSingleModelResponse(
             includeReasoning,
             onChunk: (content) => {
                 fullContent += content;
-                sendEvent(controller, { type: 'model_chunk', modelId: model, content });
+                sendEvent(controller, { type: 'model_chunk', instanceId, modelId: model, content });
             },
             onReasoning: (text) => {
-                sendEvent(controller, { type: 'model_reasoning', modelId: model, reasoning: text });
+                sendEvent(controller, { type: 'model_reasoning', instanceId, modelId: model, reasoning: text });
             },
             onComplete: (_content, usage) => {
                 finalUsage = usage;
@@ -123,6 +126,7 @@ async function generateSingleModelResponse(
         const wordCount = countWords(fullContent);
         sendEvent(controller, {
             type: 'model_complete',
+            instanceId,
             modelId: model,
             content: fullContent,
             tokens: finalUsage?.total_tokens,
@@ -132,7 +136,7 @@ async function generateSingleModelResponse(
         return { modelId: model, content: fullContent, success: true, usage: finalUsage };
     } catch (error) {
         const errorMessage = handleOpenRouterError(error);
-        sendEvent(controller, { type: 'model_error', modelId: model, error: errorMessage });
+        sendEvent(controller, { type: 'model_error', instanceId, modelId: model, error: errorMessage });
         return { modelId: model, content: '', success: false };
     }
 }
@@ -166,9 +170,15 @@ export async function POST(request: NextRequest): Promise<Response> {
             return errorResponse('Invalid JSON body', 400);
         }
 
-        const { prompt, models, refinementModel, reasoning: globalReasoning, modelConfigs, maxSynthesisChars, contextWarningThreshold, sessionId } = body;
+        const { prompt, models, modelInstances, refinementModel, reasoning: globalReasoning, modelConfigs, maxSynthesisChars, contextWarningThreshold, sessionId } = body;
         const safeRefinementModel = typeof refinementModel === 'string' ? refinementModel : undefined;
         const safeSessionId = typeof sessionId === 'string' ? sessionId : undefined;
+        const safeModelInstances = Array.isArray(modelInstances)
+            ? modelInstances.filter(
+                (instance): instance is { modelId: string; instanceId: string } =>
+                    typeof instance?.modelId === 'string' && typeof instance?.instanceId === 'string'
+            )
+            : [];
 
         // Inject current date/time into both systemPrompt and messages
         const injected = injectTimestamp(body.systemPrompt, body.messages);
@@ -196,10 +206,21 @@ export async function POST(request: NextRequest): Promise<Response> {
             return errorResponse(apiKeyValidation.error!, 401);
         }
 
-        const modelsValidation = validateModels(models);
+        const requestedModels = safeModelInstances.length > 0
+            ? safeModelInstances.map(instance => instance.modelId)
+            : models;
+
+        const modelsValidation = validateModels(requestedModels);
         if (!modelsValidation.isValid) {
             return errorResponse(modelsValidation.error!, 400);
         }
+
+        const selectedModelInstances = safeModelInstances.length > 0
+            ? safeModelInstances
+            : models.map((modelId: string, index: number) => ({
+                modelId,
+                instanceId: `${modelId}-${index}`,
+            }));
 
         // Rate Limiting (by API Key)
         const rateLimitResult = await checkRateLimit(apiKeyValidation.sanitized!);
@@ -231,8 +252,8 @@ export async function POST(request: NextRequest): Promise<Response> {
             async start(controller) {
                 try {
                     // Fetch responses from all models in parallel
-                    const modelPromises = models.map((model: string) => {
-                        const config = modelConfigs?.[model]?.reasoning;
+                    const modelPromises = selectedModelInstances.map(({ modelId, instanceId }) => {
+                        const config = modelConfigs?.[modelId]?.reasoning;
 
                         let shouldReason = false;
                         let effort = undefined;
@@ -248,7 +269,8 @@ export async function POST(request: NextRequest): Promise<Response> {
                         const reasoningParams = shouldReason ? { effort } : undefined;
 
                         return generateSingleModelResponse(
-                            model,
+                            modelId,
+                            instanceId,
                             promptValidation.sanitized!,
                             messages,
                             apiKeyValidation.sanitized!,
@@ -270,7 +292,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                     }
 
                     // Synthesize responses
-                    const synthesisModel = safeRefinementModel || models[0];
+                    const synthesisModel = safeRefinementModel || selectedModelInstances[0].modelId;
                     sendEvent(controller, { type: 'synthesis_start', modelId: synthesisModel });
 
                     try {

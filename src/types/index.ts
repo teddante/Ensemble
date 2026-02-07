@@ -48,6 +48,7 @@ export interface Message {
 }
 
 export interface ModelResponse {
+    responseId?: string; // Unique identifier for each selected model instance
     modelId: string;
     content: string;
     status: 'pending' | 'streaming' | 'complete' | 'error';
@@ -84,6 +85,7 @@ export interface StreamEvent {
     | 'error'
     | 'warning'
     | 'debug_prompt';
+    instanceId?: string; // Unique identifier for duplicate model instances
     modelId?: string;
     content?: string;
     reasoning?: string; // Content for reasoning/thinking chunks

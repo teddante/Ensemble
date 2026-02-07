@@ -48,6 +48,7 @@ yarn-error.log*
 *.swp
 *.swo
 agents/
+.claude/
 
 # OS
 Thumbs.db

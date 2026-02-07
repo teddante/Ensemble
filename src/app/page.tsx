@@ -96,6 +96,13 @@ export default function Home() {
   }, []);
 
   const handleStreamEvent = useCallback((event: StreamEvent, originalPrompt: string) => {
+    const matchesEventTarget = (response: ModelResponse): boolean => {
+      if (event.instanceId) {
+        return response.responseId === event.instanceId;
+      }
+      return response.modelId === event.modelId;
+    };
+
     // Helper to update both ref and state
     const updateState = (
       newResponses: ModelResponse[] | ((prev: ModelResponse[]) => ModelResponse[]),
@@ -121,7 +128,7 @@ export default function Home() {
     switch (event.type) {
       case 'model_start':
         updateState(prev => prev.map(r =>
-          r.modelId === event.modelId
+          matchesEventTarget(r)
             ? { ...r, status: 'streaming' }
             : r
         ));
@@ -141,7 +148,7 @@ export default function Home() {
             generationStateRef.current.synthesisPromptData = event.promptData;
           } else {
             updateState(prev => prev.map(r =>
-              r.modelId === event.modelId
+              matchesEventTarget(r)
                 ? { ...r, promptData: event.promptData }
                 : r
             ));
@@ -151,7 +158,7 @@ export default function Home() {
 
       case 'model_chunk':
         updateState(prev => prev.map(r =>
-          r.modelId === event.modelId
+          matchesEventTarget(r)
             ? { ...r, content: r.content + (event.content || '') }
             : r
         ));
@@ -162,7 +169,7 @@ export default function Home() {
           setTruncatedModels(prev => [...prev, event.modelId || '']);
         }
         updateState(prev => prev.map(r =>
-          r.modelId === event.modelId
+          matchesEventTarget(r)
             ? { ...r, status: 'complete', content: event.content || r.content, tokens: event.tokens, wordCount: event.wordCount }
             : r
         ));
@@ -170,7 +177,7 @@ export default function Home() {
 
       case 'model_error':
         updateState(prev => prev.map(r =>
-          r.modelId === event.modelId
+          matchesEventTarget(r)
             ? { ...r, status: 'error', error: event.error }
             : r
         ));
@@ -346,8 +353,14 @@ export default function Home() {
       return;
     }
 
-    // Initialize response objects for each model
-    const initialResponses: ModelResponse[] = settings.selectedModels.map(modelId => ({
+    const selectedModelInstances = settings.selectedModels.map(modelId => ({
+      modelId,
+      instanceId: uuidv4(),
+    }));
+
+    // Initialize response objects for each model instance
+    const initialResponses: ModelResponse[] = selectedModelInstances.map(({ modelId, instanceId }) => ({
+      responseId: instanceId,
       modelId,
       content: '',
       status: 'pending',
@@ -374,6 +387,7 @@ export default function Home() {
           prompt: newPrompt,
           messages,
           models: settings.selectedModels,
+          modelInstances: selectedModelInstances,
           modelConfigs: settings.modelConfigs,
           refinementModel: settings.refinementModel,
           maxSynthesisChars: settings.maxSynthesisChars,

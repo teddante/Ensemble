@@ -22,16 +22,16 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
     const [activeFilter, setActiveFilter] = useState<FilterType>('all');
     const [isExpanded, setIsExpanded] = useState(false);
 
-    const toggleModel = useCallback((modelId: string) => {
-        const isSelected = settings.selectedModels.includes(modelId);
+    const addModel = useCallback((modelId: string) => {
+        updateSelectedModels([...settings.selectedModels, modelId]);
+    }, [settings.selectedModels, updateSelectedModels]);
 
-        if (isSelected) {
-            if (settings.selectedModels.length > 1) {
-                updateSelectedModels(settings.selectedModels.filter(id => id !== modelId));
-            }
-        } else {
-            updateSelectedModels([...settings.selectedModels, modelId]);
+    const removeModelAtIndex = useCallback((indexToRemove: number) => {
+        if (settings.selectedModels.length <= 1) {
+            return;
         }
+
+        updateSelectedModels(settings.selectedModels.filter((_, index) => index !== indexToRemove));
     }, [settings.selectedModels, updateSelectedModels]);
 
     const toggleProvider = (provider: string) => {
@@ -56,8 +56,11 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
     // Get selected model objects
     const selectedModelObjects = useMemo(() => {
         return settings.selectedModels
-            .map(id => models.find(m => m.id === id))
-            .filter((m): m is Model => m !== undefined);
+            .map((id, selectionIndex) => ({
+                selectionIndex,
+                model: models.find(m => m.id === id)
+            }))
+            .filter((entry): entry is { selectionIndex: number; model: Model } => entry.model !== undefined);
     }, [models, settings.selectedModels]);
 
     // Filter and group models
@@ -129,15 +132,15 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
                     {selectedModelObjects.length === 0 ? (
                         <p className="no-selection-message">No models selected</p>
                     ) : (
-                        selectedModelObjects.map((model) => (
-                            <div key={model.id} className="selected-model-tag model-chip">
+                        selectedModelObjects.map(({ selectionIndex, model }) => (
+                            <div key={`${model.id}-${selectionIndex}`} className="selected-model-tag model-chip">
                                 <span className="selected-model-name">{model.name}</span>
                                 <span className="selected-model-provider">{model.provider}</span>
                                 {isFreeModel(model) && <span className="free-badge">FREE</span>}
                                 {settings.selectedModels.length > 1 && (
                                     <button
                                         className="remove-model-btn"
-                                        onClick={() => toggleModel(model.id)}
+                                        onClick={() => removeModelAtIndex(selectionIndex)}
                                         aria-label={`Remove ${model.name}`}
                                     >
                                         <X size={ICON_SIZE.sm} />
@@ -205,9 +208,8 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
                     <div className="model-groups">
                         {groupedModels.map(([provider, providerModels]) => {
                             const isCollapsed = collapsedProviders === 'all' || collapsedProviders.has(provider);
-                            const selectedInGroup = providerModels.filter(m =>
-                                settings.selectedModels.includes(m.id)
-                            ).length;
+                            const providerModelIds = new Set(providerModels.map(m => m.id));
+                            const selectedInGroup = settings.selectedModels.filter(id => providerModelIds.has(id)).length;
 
                             return (
                                 <div key={provider} className="model-group">
@@ -237,7 +239,7 @@ export function ModelSelector({ models, isLoading }: ModelSelectorProps) {
                                                 return (
                                                     <button
                                                         key={model.id}
-                                                        onClick={() => toggleModel(model.id)}
+                                                        onClick={() => addModel(model.id)}
                                                         className={`model-option ${isSelected ? 'selected' : ''}`}
                                                         title={model.description}
                                                         aria-pressed={isSelected}

@@ -16,14 +16,16 @@ const STATUS_CONFIG: Record<ModelResponse['status'], { icon: React.ReactNode; la
 interface ResponseCardProps {
     response: ModelResponse;
     modelName: string;
+    responseKey: string;
     isExpanded: boolean;
-    onToggle: (modelId: string) => void;
+    onToggle: (responseKey: string) => void;
     onInspect?: (data: { messages: Message[]; modelId: string }) => void;
 }
 
 const ResponseCard = memo(function ResponseCard({
     response,
     modelName,
+    responseKey,
     isExpanded,
     onToggle,
     onInspect
@@ -34,7 +36,7 @@ const ResponseCard = memo(function ResponseCard({
         <div className={`response-card ${response.status}`}>
             <button
                 className="response-card-header"
-                onClick={() => onToggle(response.modelId)}
+                onClick={() => onToggle(responseKey)}
                 aria-expanded={isExpanded}
             >
                 <div className="response-card-info">
